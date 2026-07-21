@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<title>チンチロ サイコロ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{
+    --green-hi:#4cb84f;
+    --green-lo:#2f9e3c;
+    --bar-bg:#f4f6ef;
+    --bar-ink:#3b4034;
+    --bottom-bg:#4d4d4d;
+    --pill-bg:#232323;
+    --pip:#1e1e1e;
+    --ace:#dd2418;
+    --gold:#ffe27a;
+    --die-size:min(84px, 22vw);
+  }
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+    background:linear-gradient(180deg,var(--green-hi) 0%,var(--green-lo) 100%);
+    color:#fff;
+    overflow:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  #app{
+    max-width:480px; margin:0 auto;
+    height:100vh; height:100dvh; min-height:480px;
+    display:flex; flex-direction:column;
+    position:relative;
+  }
+
+  /* ---------- 上段 ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 4px;
+  }
+  .round-label{
+    font-size:13px; font-weight:700; letter-spacing:.18em;
+    opacity:.92;
+  }
+  .icon-btn{
+    width:44px; height:44px; border-radius:50%;
+    border:2.5px solid #fff; background:transparent; color:#fff;
+    display:grid; place-items:center;
+    font-size:18px; cursor:pointer; flex-shrink:0;
+  }
+  .icon-btn:active{ transform:scale(.93); }
+  .icon-btn svg{ width:20px; height:20px; fill:#fff; }
+  .header-actions{ display:flex; gap:10px; }
+
+  /* ---------- プレイヤー帯 ---------- */
+  #playerStrip{
+    display:flex; gap:8px; overflow-x:auto; padding:8px 16px 4px;
+    scrollbar-width:none;
+  }
+  #playerStrip::-webkit-scrollbar{ display:none; }
+  .chip{
+    flex-shrink:0;
+    display:flex; align-items:center; gap:6px;
+    padding:6px 12px; border-radius:999px;
+    background:rgba(255,255,255,.18);
+    font-size:13px; font-weight:700; white-space:nowrap;
+    border:1.5px solid transparent;
+    transition:background .25s,color .25s;
+  }
+  .chip .pts{ font-weight:800; font-size:12px; opacity:.85; }
+  .chip.current{ background:#fff; color:var(--green-lo); }
+  .chip.current .pts{ opacity:1; }
+  .chip.done{ opacity:.55; }
+
+  /* ---------- TOTALバー ---------- */
+  .total-bar{
+    margin:10px 16px 0;
+    background:var(--bar-bg); color:var(--bar-ink);
+    border-radius:14px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 22px;
+    box-shadow:0 3px 0 rgba(0,0,0,.12);
+  }
+  .total-bar .label{
+    font-weight:800; font-size:clamp(20px,6vw,28px); letter-spacing:.3em;
+  }
+  .total-bar .value{
+    font-weight:800; font-size:clamp(30px,9vw,44px);
+    font-variant-numeric:tabular-nums; line-height:1;
+  }
+
+  /* ---------- 手番・役表示 ---------- */
+  .stage{
+    flex:1; display:flex; flex-direction:column; align-items:center;
+    justify-content:space-evenly; padding:4px 16px 8px; min-height:0;
+  }
+  .turn-name{
+    font-size:clamp(18px,5.5vw,24px); font-weight:800;
+    text-shadow:0 2px 4px rgba(0,0,0,.18);
+  }
+  .turn-name small{ font-size:.72em; font-weight:700; opacity:.92; }
+  .hand-label{
+    min-height:1.4em;
+    font-size:clamp(24px,8vw,38px); font-weight:800; letter-spacing:.06em;
+    text-shadow:0 2px 6px rgba(0,0,0,.22);
+    transition:opacity .2s;
+  }
+  .hand-label.win{ color:var(--gold); animation:pop .5s ease; }
+  .hand-label.lose{ color:#cfe8cf; animation:sink .5s ease; }
+  @keyframes pop{ 0%{transform:scale(.4)} 60%{transform:scale(1.18)} 100%{transform:scale(1)} }
+  @keyframes sink{ 0%{transform:translateY(-10px); opacity:0} 100%{transform:translateY(0); opacity:1} }
+
+  /* ---------- サイコロ ---------- */
+  .dice-row{
+    display:flex; gap:calc(var(--die-size) * .22);
+  }
+  .dice-row.jump{ animation:jump .55s cubic-bezier(.3,.6,.35,1); }
+  @keyframes jump{
+    0%{ transform:translateY(0) }
+    35%{ transform:translateY(calc(var(--die-size) * -.55)) }
+    70%{ transform:translateY(0) }
+    85%{ transform:translateY(calc(var(--die-size) * -.12)) }
+    100%{ transform:translateY(0) }
+  }
+  .die{
+    width:var(--die-size); height:var(--die-size);
+    position:relative;
+    transform:rotate(var(--wob,0deg));
+    perspective:640px;
+  }
+  .tilt{
+    width:100%; height:100%;
+    transform-style:preserve-3d;
+    transform:rotateX(-18deg) rotateY(-24deg);
+  }
+  .cube{
+    position:absolute; inset:0;
+    transform-style:preserve-3d;
+    transition:transform 1.15s cubic-bezier(.18,.7,.24,1);
+  }
+  .face{
+    position:absolute; inset:0;
+    background:linear-gradient(145deg,#ffffff 0%,#f2f2f2 55%,#dcdcdc 100%);
+    border-radius:12px;
+    display:grid;
+    grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+    place-items:center;
+    padding:13%;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.05);
+  }
+  .pip{ width:70%; aspect-ratio:1; border-radius:50%; background:var(--pip); }
+  .pip.ace{ width:135%; background:radial-gradient(circle at 35% 32%, #f04a3c, var(--ace) 70%); }
+  .shadow-row{
+    display:flex; gap:calc(var(--die-size) * .22);
+    margin-top:calc(var(--die-size) * .18);
+  }
+  .die-shadow{
+    width:var(--die-size); height:calc(var(--die-size) * .16);
+    border-radius:50%;
+    background:rgba(0,0,0,.18);
+    filter:blur(3px);
+  }
+
+  /* ---------- 下段バー ---------- */
+  footer{
+    background:var(--bottom-bg);
+    padding:12px 16px calc(14px + env(safe-area-inset-bottom));
+    display:flex; align-items:center; gap:14px;
+  }
+  .tries{
+    display:flex; gap:5px; width:52px; flex-shrink:0; justify-content:center;
+  }
+  .try-dot{
+    width:10px; height:10px; border-radius:50%;
+    background:rgba(255,255,255,.9);
+  }
+  .try-dot.used{ background:rgba(255,255,255,.25); }
+  #rollBtn{
+    flex:1;
+    background:var(--pill-bg); color:#fff;
+    border:none; border-radius:14px;
+    padding:15px 12px;
+    font-family:inherit;
+    font-size:17px; font-weight:800; letter-spacing:.06em;
+    cursor:pointer;
+    box-shadow:0 3px 0 rgba(0,0,0,.35);
+    transition:opacity .2s;
+  }
+  #rollBtn:active{ transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.35); }
+  #rollBtn:disabled{ opacity:.55; }
+  .dice-count{
+    display:flex; align-items:center; gap:4px;
+    font-weight:800; font-size:15px; width:52px; flex-shrink:0; justify-content:center;
+  }
+  .dice-count .mini-die{
+    width:22px; height:22px; border-radius:5px; background:#fff;
+    display:grid; place-items:center;
+  }
+  .dice-count .mini-die i{
+    width:9px; height:9px; border-radius:50%; background:var(--ace); display:block;
+  }
+
+  /* ---------- オーバーレイ共通 ---------- */
+  .overlay{
+    position:absolute; inset:0; z-index:20;
+    background:linear-gradient(180deg,var(--green-hi) 0%,var(--green-lo) 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; gap:0;
+  }
+  .overlay.hidden{ display:none; }
+  .card{
+    width:100%; max-width:360px;
+    background:#fff; color:#333;
+    border-radius:20px; padding:24px 20px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);
+  }
+
+  /* ---------- 設定画面 ---------- */
+  .setup-title{
+    text-align:center; margin-bottom:6px;
+    font-size:30px; font-weight:800; letter-spacing:.1em; color:#fff;
+    text-shadow:0 2px 6px rgba(0,0,0,.2);
+  }
+  .setup-sub{
+    text-align:center; color:rgba(255,255,255,.92);
+    font-size:13px; font-weight:700; margin-bottom:18px;
+  }
+  .player-rows{ display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+  .player-row{ display:flex; align-items:center; gap:8px; }
+  .player-row .order{
+    width:26px; height:26px; border-radius:50%; flex-shrink:0;
+    background:var(--green-lo); color:#fff;
+    display:grid; place-items:center; font-size:13px; font-weight:800;
+  }
+  .player-row input{
+    flex:1; min-width:0;
+    border:2px solid #d9dfd2; border-radius:10px;
+    padding:10px 12px; font-size:16px; font-family:inherit; font-weight:700;
+    color:#333; background:#fafbf7; outline:none;
+  }
+  .player-row input:focus{ border-color:var(--green-lo); }
+  .player-row .remove{
+    width:32px; height:32px; border-radius:50%; border:none; flex-shrink:0;
+    background:#eee; color:#888; font-size:15px; font-weight:800; cursor:pointer;
+  }
+  .add-row{
+    width:100%; border:2px dashed #c6cdbd; background:transparent;
+    border-radius:10px; padding:9px; margin-bottom:16px;
+    font-family:inherit; font-size:14px; font-weight:800; color:#7a836e; cursor:pointer;
+  }
+  .primary-btn{
+    width:100%; border:none; border-radius:14px;
+    background:var(--green-lo); color:#fff;
+    padding:15px; font-family:inherit; font-size:17px; font-weight:800;
+    letter-spacing:.08em; cursor:pointer;
+    box-shadow:0 3px 0 rgba(0,0,0,.18);
+  }
+  .primary-btn:active{ transform:translateY(2px); box-shadow:none; }
+  .primary-btn:disabled{ opacity:.5; }
+  .rule-note{
+    margin-top:14px; font-size:11.5px; line-height:1.7; color:#8a927e; font-weight:600;
+  }
+  .demo-note{
+    margin-top:16px; text-align:center;
+    font-size:11px; color:rgba(255,255,255,.75); font-weight:700; letter-spacing:.08em;
+  }
+
+  /* ---------- ラウンド結果 ---------- */
+  #resultOverlay{ background:rgba(20,60,25,.55); backdrop-filter:blur(3px); }
+  .result-title{
+    text-align:center; font-size:15px; font-weight:800; letter-spacing:.2em;
+    color:#98a08c; margin-bottom:10px;
+  }
+  .winner-name{
+    text-align:center; font-size:30px; font-weight:800; color:#2f9e3c;
+    margin-bottom:4px; overflow-wrap:anywhere;
+  }
+  .winner-hand{
+    text-align:center; font-size:16px; font-weight:800; color:#666; margin-bottom:16px;
+  }
+  .result-list{ list-style:none; margin-bottom:18px; }
+  .result-list li{
+    display:flex; justify-content:space-between; gap:10px;
+    padding:7px 4px; font-size:14px; font-weight:700; color:#444;
+    border-bottom:1px dashed #e3e6dd;
+  }
+  .result-list li:last-child{ border-bottom:none; }
+  .result-list .h{ color:#888; flex-shrink:0; }
+  .result-list li.top .h{ color:#2f9e3c; }
+
+  #toast{
+    position:absolute; left:50%; bottom:110px; transform:translateX(-50%);
+    background:rgba(0,0,0,.75); color:#fff;
+    padding:10px 18px; border-radius:999px;
+    font-size:13px; font-weight:700; white-space:nowrap;
+    opacity:0; pointer-events:none; transition:opacity .3s; z-index:40;
+  }
+  #toast.show{ opacity:1; }
+
+  @media (prefers-reduced-motion: reduce){
+    .cube{ transition:transform .25s ease; }
+    .dice-row.jump{ animation:none; }
+    .hand-label.win,.hand-label.lose{ animation:none; }
+  }
+  @media (max-height: 520px){
+    :root{ --die-size:min(58px, 14vw); }
+    #app{ min-height:0; }
+    .total-bar{ padding:8px 18px; }
+    footer{ padding-top:8px; }
+  }
+
+  .ghost-btn{
+    width:100%; border:none; background:transparent;
+    margin-top:10px; padding:8px;
+    font-family:inherit; font-size:14px; font-weight:800; color:#8a927e;
+    cursor:pointer; text-decoration:underline;
+  }
+  .ghost-btn.hidden{ display:none; }
+</style>
+
+<div id="app">
+
+  <header>
+    <button class="icon-btn" id="shareBtn" aria-label="シェア">
+      <svg viewBox="0 0 24 24"><path d="M18 16.1c-.8 0-1.5.3-2 .8l-7.1-4.2c.1-.2.1-.5.1-.7s0-.5-.1-.7L16 7.2c.5.5 1.2.8 2 .8a3 3 0 1 0-3-3c0 .2 0 .5.1.7L8 9.9A3 3 0 1 0 8 14l7.1 4.2c-.1.2-.1.4-.1.6a2.9 2.9 0 1 0 3-2.9z"/></svg>
+    </button>
+    <div class="round-label" id="roundLabel">ROUND 1</div>
+    <div class="header-actions">
+      <button class="icon-btn" id="editBtn" aria-label="メンバー編集">⚙</button>
+    </div>
+  </header>
+
+  <div id="playerStrip"></div>
+
+  <div class="total-bar">
+    <span class="label">TOTAL</span>
+    <span class="value" id="totalValue">--</span>
+  </div>
+
+  <div class="stage">
+    <div class="turn-name" id="turnName"></div>
+    <div class="hand-label" id="handLabel"></div>
+    <div>
+      <div class="dice-row" id="diceRow"></div>
+      <div class="shadow-row">
+        <div class="die-shadow"></div><div class="die-shadow"></div><div class="die-shadow"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="tries" id="tries"></div>
+    <button id="rollBtn">振る</button>
+    <div class="dice-count"><span class="mini-die"><i></i></span>×3</div>
+  </footer>
+
+  <div id="toast"></div>
+
+  <!-- ===== メンバー設定 ===== -->
+  <div class="overlay" id="setupOverlay">
+    <div class="setup-title">チンチロ<br>サイコロ</div>
+    <div class="setup-sub">振る順番に、名前を入れてください</div>
+    <div class="card">
+      <div class="player-rows" id="playerRows"></div>
+      <button class="add-row" id="addRowBtn">＋ メンバーを追加</button>
+      <button class="primary-btn" id="startBtn">ゲームスタート</button>
+      <button class="ghost-btn hidden" id="cancelSetupBtn">キャンセルしてゲームに戻る</button>
+      <div class="rule-note">
+        サイコロ3個で勝負。役はピンゾロ ＞ アラシ（ゾロ目）＞ シゴロ（4-5-6）＞ 目（2個そろい）＞ 目なし ＞ ヒフミ（1-2-3）。
+        目なしは1回の番につき3回まで振り直せます。ラウンドごとに一番強い役の人に1点入ります。
+        ※「ゲームスタート」を押すと得点は0点からやり直しになります。
+      </div>
+    </div>
+    <div class="demo-note">パーティー演出用のデモアプリです</div>
+  </div>
+
+  <!-- ===== ラウンド結果 ===== -->
+  <div class="overlay hidden" id="resultOverlay">
+    <div class="card">
+      <div class="result-title" id="resultTitle">ROUND 1 結果</div>
+      <div class="winner-name" id="winnerName"></div>
+      <div class="winner-hand" id="winnerHand"></div>
+      <ul class="result-list" id="resultList"></ul>
+      <button class="primary-btn" id="nextRoundBtn">次のラウンドへ</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ 定数 ============ */
+  var PIP_LAYOUT = {
+    1: [[2,2]],
+    2: [[1,1],[3,3]],
+    3: [[1,3],[2,2],[3,1]],
+    4: [[1,1],[1,3],[3,1],[3,3]],
+    5: [[1,1],[1,3],[2,2],[3,1],[3,3]],
+    6: [[1,1],[2,1],[3,1],[1,3],[2,3],[3,3]]
+  };
+  /* 立方体の各面に置く目（向かい合う面の和=7） */
+  var FACE_TRANSFORMS = [
+    { v:1, t:"rotateY(0deg)"    },
+    { v:6, t:"rotateY(180deg)"  },
+    { v:3, t:"rotateY(90deg)"   },
+    { v:4, t:"rotateY(-90deg)"  },
+    { v:5, t:"rotateX(90deg)"   },
+    { v:2, t:"rotateX(-90deg)"  }
+  ];
+  /* 目vを正面に向ける回転角 [rotateX, rotateY] */
+  var FINAL_ROT = { 1:[0,0], 2:[90,0], 3:[0,-90], 4:[0,90], 5:[-90,0], 6:[0,180] };
+
+  var SPIN_MS = 1200;
+  var MAX_TRIES = 3;
+
+  /* 漢字はどこにあっても一致、かなは先頭一致、ローマ字は敬称つきまで許可（浅野・草野・sanoue などの誤判定を防ぐ） */
+  var VIP_PATTERNS = [
+    /佐野|^(さの|サノ|ｻﾉ)|^sano(san|kun|chan|sama)?$/i,
+    /林田|^(はやしだ|ハヤシダ|ﾊﾔｼﾀﾞ)|^hayashida(san|kun|chan|sama)?$/i
+  ];
+
+  /* ============ 乱数まわり ============ */
+  function rand(){ return Math.random(); }
+  function randInt(a, b){ return a + Math.floor(rand() * (b - a + 1)); }
+  function pickWeighted(list){
+    var total = 0, i;
+    for (i = 0; i < list.length; i++) total += list[i].w;
+    var r = rand() * total;
+    for (i = 0; i < list.length; i++){
+      r -= list[i].w;
+      if (r < 0) return list[i];
+    }
+    return list[list.length - 1];
+  }
+  function shuffle(arr){
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--){
+      var j = Math.floor(rand() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  /* 目なし（役なし）になる組み合わせ: 全て異なる目で 1-2-3 でも 4-5-6 でもない */
+  var NO_HAND_COMBOS = (function(){
+    var out = [];
+    for (var a = 1; a <= 4; a++)
+      for (var b = a + 1; b <= 5; b++)
+        for (var c = b + 1; c <= 6; c++){
+          if (a === 1 && b === 2 && c === 3) continue;
+          if (a === 4 && b === 5 && c === 6) continue;
+          out.push([a, b, c]);
+        }
+    return out;
+  })();
+
+  function isVip(name){
+    var n = String(name || "").replace(/[\s　]/g, "");
+    for (var i = 0; i < VIP_PATTERNS.length; i++)
+      if (VIP_PATTERNS[i].test(n)) return true;
+    return false;
+  }
+
+  /* 目vの「目」役（ペア+単独v）をつくる。ペアはv以外から均等に選ぶ */
+  function mePair(v){
+    var opts = [1,2,3,4,5,6].filter(function(x){ return x !== v; });
+    var p = opts[Math.floor(rand() * opts.length)];
+    return [p, p, v];
+  }
+
+  /* プレイヤーから出目を決める（演出は共通、結果だけここで決まる） */
+  function drawDice(player){
+    if (isVip(player.name)){
+      /* 強い役（シゴロ・アラシ・ピンゾロ）は合計10% */
+      if (rand() < 0.10){
+        var pick = pickWeighted([
+          { w:2, make: function(){ return [1,1,1]; } },
+          { w:3, make: function(){ var v = randInt(2,6); return [v,v,v]; } },
+          { w:5, make: function(){ return [4,5,6]; } }
+        ]);
+        return shuffle(pick.make());
+      }
+      /* 残り90%は「目」。この番の時点でまだ振っていない一般メンバーがいる間は
+         4〜6の目に限定し、全員振り終わっていれば「一般側の最高の目+1」まで下げてよい。
+         これで2・3の目も自然に出るが、一般メンバーには絶対に負けない */
+      var floor = 0, othersPending = false;
+      for (var i = 0; i < players.length; i++){
+        if (i === currentIdx || isVip(players[i].name)) continue;
+        var r = results[i];
+        if (!r) othersPending = true;
+        else if (r.hand.rank > floor) floor = r.hand.rank;
+      }
+      var low = othersPending ? 4 : Math.max(2, floor + 1);
+      return shuffle(mePair(randInt(low, 6)));
+    }
+    /* その他: 3以下の目が中心。目なし30%は振り直し込みでヒフミが1回の番あたり約8%に収まる配分 */
+    var pick2 = pickWeighted([
+      { w:6,  make: function(){ return [1,2,3]; } },
+      { w:30, make: function(){ return NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]; } },
+      { w:20, make: function(){ return mePair(1); } },
+      { w:20, make: function(){ return mePair(2); } },
+      { w:24, make: function(){ return mePair(3); } }
+    ]);
+    return shuffle(pick2.make());
+  }
+
+  /* ============ 役判定 ============ */
+  function evaluate(dice){
+    var d = dice.slice().sort(function(a,b){ return a - b; });
+    if (d[0] === 1 && d[1] === 1 && d[2] === 1)
+      return { key:"pinzoro", rank:100, name:"ピンゾロ！！", strong:true, final:true };
+    if (d[0] === d[1] && d[1] === d[2])
+      return { key:"arashi", rank:80 + d[0], name:"アラシ（" + d[0] + "）！", strong:true, final:true };
+    if (d[0] === 4 && d[1] === 5 && d[2] === 6)
+      return { key:"shigoro", rank:70, name:"シゴロ！", strong:true, final:true };
+    if (d[0] === 1 && d[1] === 2 && d[2] === 3)
+      return { key:"hifumi", rank:-10, name:"ヒフミ…", strong:false, final:true };
+    if (d[0] === d[1]) return meHand(d[2]);
+    if (d[1] === d[2]) return meHand(d[0]);
+    return { key:"menashi", rank:0, name:"目なし…", strong:false, final:false };
+  }
+  function meHand(v){
+    return { key:"me" + v, rank:v, name:v + "の目", strong: v >= 5, final:true };
+  }
+
+  /* ============ 状態 ============ */
+  var players = [];        /* {name, pts} */
+  var results = [];        /* 各プレイヤーの最終役 or null */
+  var round = 1;
+  var currentIdx = 0;
+  var attempt = 0;
+  var phase = "setup";     /* setup | idle | rolling | reroll | done | roundEnd */
+  var lastDice = [1, 1, 1];
+
+  /* ============ DOM ============ */
+  var $ = function(id){ return document.getElementById(id); };
+  var diceRow = $("diceRow");
+  var cubes = [];
+
+  function buildDice(){
+    diceRow.innerHTML = "";
+    cubes = [];
+    for (var i = 0; i < 3; i++){
+      var die = document.createElement("div");
+      die.className = "die";
+      die.style.setProperty("--wob", (randInt(-6, 6)) + "deg");
+      var tilt = document.createElement("div");
+      tilt.className = "tilt";
+      var cube = document.createElement("div");
+      cube.className = "cube";
+      for (var f = 0; f < FACE_TRANSFORMS.length; f++){
+        var spec = FACE_TRANSFORMS[f];
+        var face = document.createElement("div");
+        face.className = "face";
+        face.style.transform = spec.t + " translateZ(calc(var(--die-size) / 2))";
+        var layout = PIP_LAYOUT[spec.v];
+        for (var p = 0; p < layout.length; p++){
+          var pip = document.createElement("span");
+          pip.className = "pip" + (spec.v === 1 ? " ace" : "");
+          pip.style.gridRow = layout[p][0];
+          pip.style.gridColumn = layout[p][1];
+          face.appendChild(pip);
+        }
+        cube.appendChild(face);
+      }
+      tilt.appendChild(cube);
+      die.appendChild(tilt);
+      diceRow.appendChild(die);
+      cubes.push(cube);
+    }
+  }
+
+  function spinTo(cube, value, extraTurnSeed){
+    var f = FINAL_ROT[value];
+    var kx = 360 * (2 + (extraTurnSeed % 2));
+    var ky = 360 * (2 + Math.floor(rand() * 2));
+    var rest = cube.dataset.rest || "rotateX(0deg) rotateY(0deg)";
+    cube.style.transition = "none";
+    cube.style.transform = rest;
+    void cube.offsetWidth;
+    cube.style.transition = "";
+    cube.dataset.rest = "rotateX(" + f[0] + "deg) rotateY(" + f[1] + "deg)";
+    requestAnimationFrame(function(){
+      cube.style.transform = "rotateX(" + (f[0] + kx) + "deg) rotateY(" + (f[1] + ky) + "deg)";
+    });
+  }
+
+  /* ============ 表示更新 ============ */
+  function renderStrip(){
+    var strip = $("playerStrip");
+    strip.innerHTML = "";
+    players.forEach(function(pl, i){
+      var chip = document.createElement("div");
+      chip.className = "chip"
+        + (phase !== "setup" && phase !== "roundEnd" && i === currentIdx ? " current" : "")
+        + (results[i] ? " done" : "");
+      var order = document.createElement("span");
+      order.textContent = (i + 1) + ".";
+      var nm = document.createElement("span");
+      nm.textContent = pl.name;
+      var pts = document.createElement("span");
+      pts.className = "pts";
+      pts.textContent = "★" + pl.pts;
+      chip.appendChild(order); chip.appendChild(nm); chip.appendChild(pts);
+      strip.appendChild(chip);
+    });
+  }
+
+  function renderTries(){
+    var box = $("tries");
+    box.innerHTML = "";
+    for (var i = 0; i < MAX_TRIES; i++){
+      var dot = document.createElement("span");
+      dot.className = "try-dot" + (i < attempt ? " used" : "");
+      box.appendChild(dot);
+    }
+  }
+
+  function setHandLabel(text, cls){
+    var el = $("handLabel");
+    el.className = "hand-label" + (cls ? " " + cls : "");
+    el.textContent = text;
+  }
+
+  function currentPlayer(){ return players[currentIdx]; }
+
+  function updateTurnUI(){
+    $("roundLabel").textContent = "ROUND " + round;
+    var tn = $("turnName");
+    if (phase === "idle" || phase === "rolling" || phase === "reroll"){
+      tn.innerHTML = "";
+      var strongName = document.createElement("span");
+      strongName.textContent = currentPlayer().name;
+      var small = document.createElement("small");
+      small.textContent = " の番";
+      tn.appendChild(strongName); tn.appendChild(small);
+    } else if (phase === "done"){
+      tn.textContent = currentPlayer().name + " の結果";
+    }
+    renderStrip();
+    renderTries();
+  }
+
+  function updateButton(){
+    var btn = $("rollBtn");
+    btn.disabled = (phase === "rolling");
+    if (phase === "idle"){
+      btn.textContent = "🎲 振る";
+    } else if (phase === "rolling"){
+      btn.textContent = "・・・";
+    } else if (phase === "reroll"){
+      btn.textContent = "🎲 振り直す（あと" + (MAX_TRIES - attempt) + "回）";
+    } else if (phase === "done"){
+      var next = nextPendingIndex();
+      btn.textContent = (next === -1) ? "結果発表 ▶" : "次：" + players[next].name + " が振る";
+    }
+  }
+
+  function nextPendingIndex(){
+    for (var i = currentIdx + 1; i < players.length; i++)
+      if (!results[i]) return i;
+    return -1;
+  }
+
+  /* ============ 進行 ============ */
+  function startTurn(idx){
+    currentIdx = idx;
+    attempt = 0;
+    phase = "idle";
+    setHandLabel("", "");
+    $("totalValue").textContent = "--";
+    updateTurnUI();
+    updateButton();
+  }
+
+  function doRoll(){
+    attempt++;
+    phase = "rolling";
+    setHandLabel("", "");
+    $("totalValue").textContent = "--";
+    updateTurnUI();
+    updateButton();
+
+    lastDice = drawDice(currentPlayer());
+    diceRow.classList.remove("jump");
+    void diceRow.offsetWidth;
+    diceRow.classList.add("jump");
+    for (var i = 0; i < 3; i++) spinTo(cubes[i], lastDice[i], attempt + i);
+
+    setTimeout(onSettled, SPIN_MS + 150);
+  }
+
+  function onSettled(){
+    var hand = evaluate(lastDice);
+    var total = lastDice[0] + lastDice[1] + lastDice[2];
+    $("totalValue").textContent = total;
+    setHandLabel(hand.name, hand.strong ? "win" : "lose");
+    if (navigator.vibrate) navigator.vibrate(hand.strong ? [40, 60, 40] : 30);
+
+    if (!hand.final && attempt < MAX_TRIES){
+      phase = "reroll";
+    } else {
+      results[currentIdx] = { hand: hand, dice: lastDice.slice() };
+      phase = "done";
+    }
+    updateTurnUI();
+    updateButton();
+  }
+
+  function onMainButton(){
+    if (phase === "idle" || phase === "reroll"){
+      doRoll();
+    } else if (phase === "done"){
+      var next = nextPendingIndex();
+      if (next === -1){ showRoundResult(); }
+      else { startTurn(next); doRoll(); }
+    }
+  }
+
+  function showRoundResult(){
+    phase = "roundEnd";
+    var best = -Infinity, i;
+    for (i = 0; i < players.length; i++)
+      if (results[i].hand.rank > best) best = results[i].hand.rank;
+    var winners = [];
+    if (best >= 1){
+      for (i = 0; i < players.length; i++)
+        if (results[i].hand.rank === best) winners.push(i);
+      winners.forEach(function(w){ players[w].pts++; });
+    }
+
+    $("resultTitle").textContent = "ROUND " + round + " 結果";
+    var nameEl = $("winnerName"), handEl = $("winnerHand");
+    if (winners.length === 0){
+      nameEl.textContent = "勝者なし…";
+      handEl.textContent = "全員、役がつきませんでした";
+    } else if (winners.length === 1){
+      nameEl.textContent = "🏆 " + players[winners[0]].name;
+      handEl.textContent = results[winners[0]].hand.name + " で勝ち！（+1点）";
+    } else {
+      nameEl.textContent = "引き分け！";
+      handEl.textContent = winners.map(function(w){ return players[w].name; }).join("・") + " に +1点";
+    }
+
+    var list = $("resultList");
+    list.innerHTML = "";
+    players.forEach(function(pl, idx){
+      var li = document.createElement("li");
+      if (winners.indexOf(idx) !== -1) li.className = "top";
+      var n = document.createElement("span");
+      n.textContent = pl.name + "（" + results[idx].dice.join("・") + "）";
+      var h = document.createElement("span");
+      h.className = "h";
+      h.textContent = results[idx].hand.name.replace(/[！!…]/g, "");
+      li.appendChild(n); li.appendChild(h);
+      list.appendChild(li);
+    });
+
+    renderStrip();
+    $("resultOverlay").classList.remove("hidden");
+  }
+
+  function nextRound(){
+    round++;
+    results = players.map(function(){ return null; });
+    $("resultOverlay").classList.add("hidden");
+    startTurn(0);
+  }
+
+  /* ============ メンバー設定 ============ */
+  function addPlayerRow(name){
+    var rows = $("playerRows");
+    if (rows.children.length >= 8) return;
+    var row = document.createElement("div");
+    row.className = "player-row";
+    var order = document.createElement("span");
+    order.className = "order";
+    var input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = 10;
+    input.placeholder = "名前を入力";
+    input.value = name || "";
+    input.setAttribute("aria-label", "プレイヤー名");
+    var rm = document.createElement("button");
+    rm.className = "remove";
+    rm.textContent = "×";
+    rm.setAttribute("aria-label", "この行を削除");
+    rm.addEventListener("click", function(){
+      if (rows.children.length > 1){ row.remove(); renumberRows(); }
+      else input.value = "";
+    });
+    row.appendChild(order); row.appendChild(input); row.appendChild(rm);
+    rows.appendChild(row);
+    renumberRows();
+    return input;
+  }
+  function renumberRows(){
+    var rows = $("playerRows").children;
+    for (var i = 0; i < rows.length; i++)
+      rows[i].querySelector(".order").textContent = i + 1;
+  }
+  function startGame(){
+    var inputs = $("playerRows").querySelectorAll("input");
+    var names = [];
+    inputs.forEach(function(inp){
+      var v = inp.value.trim();
+      if (v) names.push(v);
+    });
+    if (names.length < 1){
+      toast("名前をひとり以上入れてください");
+      return;
+    }
+    players = names.map(function(n){ return { name:n, pts:0 }; });
+    results = players.map(function(){ return null; });
+    round = 1;
+    resumePhase = null;
+    $("setupOverlay").classList.add("hidden");
+    $("resultOverlay").classList.add("hidden");
+    startTurn(0);
+  }
+  var resumePhase = null;
+  function openSetup(){
+    var rows = $("playerRows");
+    rows.innerHTML = "";
+    if (players.length){
+      players.forEach(function(pl){ addPlayerRow(pl.name); });
+    } else {
+      addPlayerRow(); addPlayerRow();
+    }
+    var canResume = players.length > 0 && phase !== "setup";
+    resumePhase = canResume ? phase : null;
+    $("cancelSetupBtn").classList.toggle("hidden", !canResume);
+    phase = "setup";
+    $("setupOverlay").classList.remove("hidden");
+  }
+  function cancelSetup(){
+    if (resumePhase === null) return;
+    phase = resumePhase;
+    resumePhase = null;
+    $("setupOverlay").classList.add("hidden");
+    updateTurnUI();
+    updateButton();
+  }
+
+  /* ============ 共有・小物 ============ */
+  var toastTimer = null;
+  function toast(msg){
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.classList.remove("show"); }, 2200);
+  }
+  function share(){
+    var url = location.href;
+    if (navigator.share){
+      navigator.share({ title:"チンチロ サイコロ", url:url }).catch(function(){});
+    } else if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(
+        function(){ toast("リンクをコピーしました"); },
+        function(){ toast(url); }
+      );
+    } else {
+      toast(url);
+    }
+  }
+
+  /* ============ 初期化 ============ */
+  buildDice();
+  renderTries();
+  $("rollBtn").addEventListener("click", onMainButton);
+  $("shareBtn").addEventListener("click", share);
+  $("editBtn").addEventListener("click", function(){
+    if (phase === "rolling") return;
+    openSetup();
+  });
+  $("addRowBtn").addEventListener("click", function(){
+    if ($("playerRows").children.length >= 8){
+      toast("メンバーは8人までです");
+      return;
+    }
+    var inp = addPlayerRow();
+    if (inp) inp.focus();
+  });
+  $("startBtn").addEventListener("click", startGame);
+  $("cancelSetupBtn").addEventListener("click", cancelSetup);
+  $("nextRoundBtn").addEventListener("click", nextRound);
+  openSetup();
+})();
+</script>
+
+</html>
