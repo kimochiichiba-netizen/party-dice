@@ -464,9 +464,13 @@
     return [p, p, v];
   }
 
-  /* プレイヤーから出目を決める（演出は共通、結果だけここで決まる） */
-  function drawDice(player){
+  /* プレイヤーと何投目かから出目を決める（演出は共通、結果だけここで決まる） */
+  function drawDice(player, attempt){
     if (isVip(player.name)){
+      /* 目なし→振り直しの流れも見せる: 1投目30%・2投目20%で目なし。最後の投は必ず役を出す */
+      var menashiChance = (attempt === 1) ? 0.3 : (attempt === 2 ? 0.2 : 0);
+      if (rand() < menashiChance)
+        return shuffle(NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]);
       /* 強い役（シゴロ・アラシ・ピンゾロ）は合計10% */
       if (rand() < 0.10){
         var pick = pickWeighted([
@@ -677,7 +681,7 @@
     updateTurnUI();
     updateButton();
 
-    lastDice = drawDice(currentPlayer());
+    lastDice = drawDice(currentPlayer(), attempt);
     diceRow.classList.remove("jump");
     void diceRow.offsetWidth;
     diceRow.classList.add("jump");
