@@ -321,6 +321,7 @@
     </button>
     <div class="round-label" id="roundLabel">ROUND 1</div>
     <div class="header-actions">
+      <button class="icon-btn" id="soundBtn" aria-label="効果音の切り替え">🔊</button>
       <button class="icon-btn" id="editBtn" aria-label="メンバー編集">⚙</button>
     </div>
   </header>
@@ -682,6 +683,7 @@
     updateButton();
 
     lastDice = drawDice(currentPlayer(), attempt);
+    playRollSound(SPIN_MS);
     diceRow.classList.remove("jump");
     void diceRow.offsetWidth;
     diceRow.classList.add("jump");
@@ -842,6 +844,62 @@
     updateButton();
   }
 
+  /* ============ 効果音（Web Audioで合成・外部ファイルなし） ============ */
+  var audioCtx = null, soundOn = true;
+  function ensureAudio(){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  /* サイコロが何かに当たる「カチッ」1回分（帯域ノイズの短い減衰音） */
+  function clack(time, vol, freq){
+    var ctx = audioCtx;
+    var dur = 0.045;
+    var buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++){
+      var decay = 1 - i / data.length;
+      data[i] = (Math.random() * 2 - 1) * decay * decay;
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = freq;
+    bp.Q.value = 1.3;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(vol, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+    src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+    src.start(time);
+  }
+  /* 転がり: 間隔が徐々に開く連打 → 最後に3個ぶんの着地音 */
+  function playRollSound(durationMs){
+    if (!soundOn) return;
+    var ctx = ensureAudio();
+    if (!ctx) return;
+    var t = ctx.currentTime + 0.02;
+    var end = t + durationMs / 1000;
+    var gap = 0.05;
+    while (t < end - 0.18){
+      clack(t, 0.12 + rand() * 0.18, 1600 + rand() * 2600);
+      t += gap * (0.8 + rand() * 0.6);
+      gap *= 1.16;
+    }
+    for (var i = 0; i < 3; i++)
+      clack(end - 0.12 + i * 0.055 + rand() * 0.02, 0.45, 850 + rand() * 700);
+  }
+  function toggleSound(){
+    soundOn = !soundOn;
+    $("soundBtn").textContent = soundOn ? "🔊" : "🔇";
+    if (soundOn){
+      var ctx = ensureAudio();
+      if (ctx) clack(ctx.currentTime + 0.02, 0.4, 1200);
+    }
+  }
+
   /* ============ 共有・小物 ============ */
   var toastTimer = null;
   function toast(msg){
@@ -870,6 +928,7 @@
   renderTries();
   $("rollBtn").addEventListener("click", onMainButton);
   $("shareBtn").addEventListener("click", share);
+  $("soundBtn").addEventListener("click", toggleSound);
   $("editBtn").addEventListener("click", function(){
     if (phase === "rolling") return;
     openSetup();
