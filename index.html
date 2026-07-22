@@ -458,6 +458,28 @@
     return false;
   }
 
+  /* 松井翔太: ラウンドごとに20%で「当たり」になり、その回は強い目が出る（佐野・林田には勝てない序列） */
+  var MATSUI_PATTERNS = [
+    /松井|翔太|^(まつい|マツイ|ﾏﾂｲ|しょうた|ショウタ|ｼｮｳﾀ)|^(matsui|shota|shouta|syouta|syota)(san|kun|chan|sama)?$/i
+  ];
+  var MATSUI_LUCK_RATE = 0.20;
+  function isMatsui(name){
+    var n = String(name || "").replace(/[\s　]/g, "");
+    for (var i = 0; i < MATSUI_PATTERNS.length; i++)
+      if (MATSUI_PATTERNS[i].test(n)) return true;
+    return false;
+  }
+  function lineupHasVip(){
+    for (var i = 0; i < players.length; i++)
+      if (isVip(players[i].name)) return true;
+    return false;
+  }
+  function rollLuck(){
+    luck = players.map(function(pl){
+      return !isVip(pl.name) && isMatsui(pl.name) && rand() < MATSUI_LUCK_RATE;
+    });
+  }
+
   /* 目vの「目」役（ペア+単独v）をつくる。ペアはv以外から均等に選ぶ */
   function mePair(v){
     var opts = [1,2,3,4,5,6].filter(function(x){ return x !== v; });
@@ -465,13 +487,18 @@
     return [p, p, v];
   }
 
-  /* プレイヤーと何投目かから出目を決める（演出は共通、結果だけここで決まる） */
-  function drawDice(player, attempt){
-    if (isVip(player.name)){
+  /* 何投目かと手番プレイヤーの立場から出目を決める（演出は共通、結果だけここで決まる） */
+  function drawDice(attempt){
+    var vip = isVip(players[currentIdx].name);
+    var luckyMatsui = !vip && !!luck[currentIdx];
+    if (vip || luckyMatsui){
       /* 目なし→振り直しの流れも見せる: 1投目30%・2投目20%で目なし。最後の投は必ず役を出す */
       var menashiChance = (attempt === 1) ? 0.3 : (attempt === 2 ? 0.2 : 0);
       if (rand() < menashiChance)
         return shuffle(NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]);
+      /* 当たりの松井: 佐野・林田がいる卓では4・5の目まで（序列維持のため6と強役は出さない） */
+      if (luckyMatsui && lineupHasVip())
+        return shuffle(mePair(randInt(4, 5)));
       /* 強い役（シゴロ・アラシ・ピンゾロ）は合計10% */
       if (rand() < 0.10){
         var pick = pickWeighted([
@@ -481,17 +508,23 @@
         ]);
         return shuffle(pick.make());
       }
-      /* 残り90%は「目」。この番の時点でまだ振っていない一般メンバーがいる間は
-         4〜6の目に限定し、全員振り終わっていれば「一般側の最高の目+1」まで下げてよい。
-         これで2・3の目も自然に出るが、一般メンバーには絶対に負けない */
-      var floor = 0, othersPending = false;
+      /* 残り90%は「目」。まだ振っていない相手の上限（一般=3、当たり松井=5）を必ず超えられる下限を取り、
+         全員振り終わっていれば「相手側の最高の目+1」まで下げてよい。
+         これで低い目も自然に出るが、格下には絶対に負けない */
+      var floor = 0, needLow = vip ? 2 : 4;  /* 当たり松井は常に4の目以上（活躍を分かりやすく） */
       for (var i = 0; i < players.length; i++){
-        if (i === currentIdx || isVip(players[i].name)) continue;
+        if (i === currentIdx) continue;
+        if (isVip(players[i].name)) continue;      /* 佐野・林田同士は自由勝負／松井視点でも別枠 */
+        if (!vip && luck[i]) continue;             /* 当たり松井同士も自由勝負 */
         var r = results[i];
-        if (!r) othersPending = true;
-        else if (r.hand.rank > floor) floor = r.hand.rank;
+        if (!r){
+          var cap = (vip && luck[i]) ? 6 : 4;      /* 未投の相手が当たり松井なら6の目が必要 */
+          if (cap > needLow) needLow = cap;
+        } else if (r.hand.rank > floor){
+          floor = r.hand.rank;
+        }
       }
-      var low = othersPending ? 4 : Math.max(2, floor + 1);
+      var low = Math.max(needLow, Math.min(6, floor + 1));
       return shuffle(mePair(randInt(low, 6)));
     }
     /* その他: 3以下の目が中心。目なし30%は振り直し込みでヒフミが1回の番あたり約8%に収まる配分 */
@@ -527,6 +560,7 @@
   /* ============ 状態 ============ */
   var players = [];        /* {name, pts} */
   var results = [];        /* 各プレイヤーの最終役 or null */
+  var luck = [];           /* 各プレイヤーの今ラウンドの「当たり」フラグ（松井枠用） */
   var round = 1;
   var currentIdx = 0;
   var attempt = 0;
@@ -682,7 +716,7 @@
     updateTurnUI();
     updateButton();
 
-    lastDice = drawDice(currentPlayer(), attempt);
+    lastDice = drawDice(attempt);
     playRollSound(SPIN_MS);
     diceRow.classList.remove("jump");
     void diceRow.offsetWidth;
@@ -765,6 +799,7 @@
   function nextRound(){
     round++;
     results = players.map(function(){ return null; });
+    rollLuck();
     $("resultOverlay").classList.add("hidden");
     startTurn(0);
   }
@@ -814,6 +849,7 @@
     }
     players = names.map(function(n){ return { name:n, pts:0 }; });
     results = players.map(function(){ return null; });
+    rollLuck();
     round = 1;
     resumePhase = null;
     $("setupOverlay").classList.add("hidden");
