@@ -113,7 +113,7 @@
 
   /* ---------- サイコロ ---------- */
   .dice-row{
-    display:flex; gap:calc(var(--die-size) * .22);
+    display:flex; gap:calc(var(--die-size) * .08);
   }
   .dice-row.jump{ animation:jump .55s cubic-bezier(.3,.6,.35,1); }
   @keyframes jump{
@@ -126,14 +126,12 @@
   .die{
     width:var(--die-size); height:var(--die-size);
     position:relative;
-    transform:rotate(var(--wob,0deg));
-    perspective:640px;
   }
   .tilt{
     width:100%; height:100%;
     transform-style:preserve-3d;
-    /* 上から見下ろす角度: 出目の面（cubeの正面）が上を向いて見える */
-    transform:rotateX(56deg) rotateY(var(--yaw,-30deg));
+    /* 上から見下ろす角度: 出目の面（cubeの正面）が読みやすい大きさで上向きに見える */
+    transform:rotateX(35deg) rotateY(var(--yaw,-30deg));
   }
   .cube{
     position:absolute; inset:0;
@@ -153,8 +151,8 @@
   .pip{ width:70%; aspect-ratio:1; border-radius:50%; background:var(--pip); }
   .pip.ace{ width:135%; background:radial-gradient(circle at 35% 32%, #f04a3c, var(--ace) 70%); }
   .shadow-row{
-    display:flex; gap:calc(var(--die-size) * .22);
-    margin-top:calc(var(--die-size) * .18);
+    display:flex; gap:calc(var(--die-size) * .08);
+    margin-top:calc(var(--die-size) * .14);
   }
   .die-shadow{
     width:var(--die-size); height:calc(var(--die-size) * .16);
@@ -459,6 +457,10 @@
       if (VIP_PATTERNS[i].test(n)) return true;
     return false;
   }
+  /* 佐野だけの個別判定（1投目を必ず目なしにする演出用） */
+  function isSano(name){
+    return VIP_PATTERNS[0].test(String(name || "").replace(/[\s　]/g, ""));
+  }
 
   /* 松井翔太: ラウンドごとに20%で「当たり」になり、その回は強い目が出る（佐野・林田には勝てない序列） */
   var MATSUI_PATTERNS = [
@@ -494,8 +496,11 @@
     var vip = isVip(players[currentIdx].name);
     var luckyMatsui = !vip && !!luck[currentIdx];
     if (vip || luckyMatsui){
-      /* 目なし→振り直しの流れも見せる: 1投目30%・2投目20%で目なし。最後の投は必ず役を出す */
-      var menashiChance = (attempt === 1) ? 0.3 : (attempt === 2 ? 0.2 : 0);
+      /* 目なし→振り直しの流れも見せる: 1投目30%・2投目20%で目なし。最後の投は必ず役を出す。
+         佐野だけは1投目を必ず目なしにして「振り直しから勝つ」流れを固定 */
+      var menashiChance;
+      if (vip && isSano(players[currentIdx].name) && attempt === 1) menashiChance = 1;
+      else menashiChance = (attempt === 1) ? 0.3 : (attempt === 2 ? 0.2 : 0);
       if (rand() < menashiChance)
         return shuffle(NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]);
       /* 当たりの松井: 佐野・林田がいる卓では4・5の目まで（序列維持のため6と強役は出さない） */
@@ -580,8 +585,8 @@
     for (var i = 0; i < 3; i++){
       var die = document.createElement("div");
       die.className = "die";
-      die.style.setProperty("--wob", (randInt(-6, 6)) + "deg");
-      die.style.setProperty("--yaw", (-16 - randInt(0, 28)) + "deg");
+      var yawSign = rand() < 0.5 ? -1 : 1;
+      die.style.setProperty("--yaw", (yawSign * (15 + randInt(0, 15))) + "deg");
       var tilt = document.createElement("div");
       tilt.className = "tilt";
       var cube = document.createElement("div");
