@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <title>チンチロ サイコロ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
 <style>
   :root{
     --green-hi:#4cb84f;
@@ -131,7 +132,8 @@
   .tilt{
     width:100%; height:100%;
     transform-style:preserve-3d;
-    transform:rotateX(-18deg) rotateY(-24deg);
+    /* 上から見下ろす角度: 出目の面（cubeの正面）が上を向いて見える */
+    transform:rotateX(56deg) rotateY(var(--yaw,-30deg));
   }
   .cube{
     position:absolute; inset:0;
@@ -579,6 +581,7 @@
       var die = document.createElement("div");
       die.className = "die";
       die.style.setProperty("--wob", (randInt(-6, 6)) + "deg");
+      die.style.setProperty("--yaw", (-16 - randInt(0, 28)) + "deg");
       var tilt = document.createElement("div");
       tilt.className = "tilt";
       var cube = document.createElement("div");
