@@ -113,7 +113,7 @@
 
   /* ---------- サイコロ ---------- */
   .dice-row{
-    display:flex; gap:calc(var(--die-size) * .08);
+    display:flex; gap:calc(var(--die-size) * .22);
   }
   .dice-row.jump{ animation:jump .55s cubic-bezier(.3,.6,.35,1); }
   @keyframes jump{
@@ -126,12 +126,13 @@
   .die{
     width:var(--die-size); height:var(--die-size);
     position:relative;
+    transform:rotate(var(--wob,0deg));
+    perspective:640px;
   }
   .tilt{
     width:100%; height:100%;
     transform-style:preserve-3d;
-    /* 上から見下ろす角度: 出目の面（cubeの正面）が読みやすい大きさで上向きに見える */
-    transform:rotateX(35deg) rotateY(var(--yaw,-30deg));
+    transform:rotateX(-18deg) rotateY(-24deg);
   }
   .cube{
     position:absolute; inset:0;
@@ -151,8 +152,8 @@
   .pip{ width:70%; aspect-ratio:1; border-radius:50%; background:var(--pip); }
   .pip.ace{ width:135%; background:radial-gradient(circle at 35% 32%, #f04a3c, var(--ace) 70%); }
   .shadow-row{
-    display:flex; gap:calc(var(--die-size) * .08);
-    margin-top:calc(var(--die-size) * .14);
+    display:flex; gap:calc(var(--die-size) * .22);
+    margin-top:calc(var(--die-size) * .18);
   }
   .die-shadow{
     width:var(--die-size); height:calc(var(--die-size) * .16);
@@ -585,8 +586,7 @@
     for (var i = 0; i < 3; i++){
       var die = document.createElement("div");
       die.className = "die";
-      var yawSign = rand() < 0.5 ? -1 : 1;
-      die.style.setProperty("--yaw", (yawSign * (15 + randInt(0, 15))) + "deg");
+      die.style.setProperty("--wob", (randInt(-6, 6)) + "deg");
       var tilt = document.createElement("div");
       tilt.className = "tilt";
       var cube = document.createElement("div");
