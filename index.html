@@ -528,8 +528,8 @@
   }
 
   function drawDice(attempt){
-    /* 最初の回戦は全員3投とも目なし（振り直しを使い切っても役が出ない） */
-    if (round <= MENASHI_ROUNDS) return noHandDice();
+    /* 最初の回戦は3投とも目なし。ただし佐野だけは例外で、いつもどおり目を出す */
+    if (round <= MENASHI_ROUNDS && !isSano(players[currentIdx].name)) return noHandDice();
     var forceHand = false;
     var vip = isVip(players[currentIdx].name);
     var luckyMatsui = !vip && !!luck[currentIdx];
