@@ -362,8 +362,8 @@
       <button class="add-row" id="addRowBtn">＋ メンバーを追加</button>
       <button class="primary-btn" id="startBtn">ゲームスタート</button>
       <button class="ghost-btn hidden" id="cancelSetupBtn">キャンセルしてゲームに戻る</button>
-      <div class="rule-note">
-        サイコロ3個で勝負。役はピンゾロ ＞ アラシ（ゾロ目）＞ シゴロ（4-5-6）＞ 目（2個そろい）＞ 目なし ＞ ヒフミ（1-2-3）。
+      <div class="rule-note" id="ruleNote">
+        <span id="ruleHands">サイコロ3個で勝負。役はピンゾロ ＞ アラシ（ゾロ目）＞ シゴロ（4-5-6）＞ 目（2個そろい）＞ 目なし ＞ ヒフミ（1-2-3）。</span>
         目なしは1回の番につき3回まで振り直せます。ラウンドごとに一番強い役の人に1点入ります。
         ※「ゲームスタート」を押すと得点は0点からやり直しになります。
       </div>
@@ -410,6 +410,12 @@
 
   var SPIN_MS = 1200;
   var MAX_TRIES = 3;
+
+  /* ============ 出目ルールの切り替え ============ */
+  /* STRONG_HANDS=false: ピンゾロ・アラシ・シゴロ・ヒフミを封印し、役は「目」と「目なし」だけにする
+     MENASHI_ROUNDS=1 : この回戦までは全員が3投とも目なし（0で無効）。元に戻すときはこの2行だけ触る */
+  var STRONG_HANDS = false;
+  var MENASHI_ROUNDS = 1;
 
   /* 漢字はどこにあっても一致、かな・ローマ字は単体か敬称つきのみ（浅野・きたむら・まさとし などの誤判定を防ぐ） */
   var VIP_PATTERNS = [
@@ -495,7 +501,13 @@
   }
 
   /* 何投目かと手番プレイヤーの立場から出目を決める（演出は共通、結果だけここで決まる） */
+  function noHandDice(){
+    return shuffle(NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]);
+  }
+
   function drawDice(attempt){
+    /* 最初の回戦は全員が3投とも目なし（誰も役を出せない掴みの演出） */
+    if (round <= MENASHI_ROUNDS) return noHandDice();
     var vip = isVip(players[currentIdx].name);
     var luckyMatsui = !vip && !!luck[currentIdx];
     if (vip || luckyMatsui){
@@ -505,12 +517,12 @@
       if (vip && isSano(players[currentIdx].name) && attempt === 1) menashiChance = 1;
       else menashiChance = (attempt === 1) ? 0.3 : (attempt === 2 ? 0.2 : 0);
       if (rand() < menashiChance)
-        return shuffle(NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]);
+        return noHandDice();
       /* 当たりの松井: 佐野・林田がいる卓では4・5の目まで（序列維持のため6と強役は出さない） */
       if (luckyMatsui && lineupHasVip())
         return shuffle(mePair(randInt(4, 5)));
-      /* 強い役（シゴロ・アラシ・ピンゾロ）は合計10% */
-      if (rand() < 0.10){
+      /* 強い役（シゴロ・アラシ・ピンゾロ）は合計10%。封印中は出さない */
+      if (STRONG_HANDS && rand() < 0.10){
         var pick = pickWeighted([
           { w:2, make: function(){ return [1,1,1]; } },
           { w:3, make: function(){ var v = randInt(2,6); return [v,v,v]; } },
@@ -537,14 +549,16 @@
       var low = Math.max(needLow, Math.min(6, floor + 1));
       return shuffle(mePair(randInt(low, 6)));
     }
-    /* その他: 3以下の目が中心。目なし30%は振り直し込みでヒフミが1回の番あたり約8%に収まる配分 */
-    var pick2 = pickWeighted([
-      { w:6,  make: function(){ return [1,2,3]; } },
+    /* その他: 3以下の目が中心。目なし30%は振り直し込みでヒフミが1回の番あたり約8%に収まる配分。
+       封印中はヒフミの枠（6）を3の目へ寄せる */
+    var table = [
       { w:30, make: function(){ return NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]; } },
       { w:20, make: function(){ return mePair(1); } },
       { w:20, make: function(){ return mePair(2); } },
-      { w:24, make: function(){ return mePair(3); } }
-    ]);
+      { w:STRONG_HANDS ? 24 : 30, make: function(){ return mePair(3); } }
+    ];
+    if (STRONG_HANDS) table.unshift({ w:6, make: function(){ return [1,2,3]; } });
+    var pick2 = pickWeighted(table);
     return shuffle(pick2.make());
   }
 
@@ -972,6 +986,9 @@
   /* ============ 初期化 ============ */
   buildDice();
   renderTries();
+  /* 強い役を封印している間は、遊び方の説明も実際の出目に合わせる */
+  if (!STRONG_HANDS)
+    $("ruleHands").textContent = "サイコロ3個で勝負。役は目（2個そろい）＞ 目なし。そろった残り1個の数字が大きいほど強いです。";
   $("rollBtn").addEventListener("click", onMainButton);
   $("shareBtn").addEventListener("click", share);
   $("soundBtn").addEventListener("click", toggleSound);
