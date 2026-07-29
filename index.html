@@ -506,15 +506,18 @@
   }
 
   function drawDice(attempt){
-    /* 最初の回戦は全員が3投とも目なし（誰も役を出せない掴みの演出） */
-    if (round <= MENASHI_ROUNDS) return noHandDice();
+    /* 最初の回戦は全員「1投目は目なし → 2投目で必ず目が出る」流れに固定 */
+    var firstRound = (round <= MENASHI_ROUNDS);
+    if (firstRound && attempt === 1) return noHandDice();
+    var forceHand = firstRound;              /* 1回戦の2投目以降は目なしを出さない */
     var vip = isVip(players[currentIdx].name);
     var luckyMatsui = !vip && !!luck[currentIdx];
     if (vip || luckyMatsui){
       /* 目なし→振り直しの流れも見せる: 1投目30%・2投目20%で目なし。最後の投は必ず役を出す。
          佐野だけは1投目を必ず目なしにして「振り直しから勝つ」流れを固定 */
       var menashiChance;
-      if (vip && isSano(players[currentIdx].name) && attempt === 1) menashiChance = 1;
+      if (forceHand) menashiChance = 0;
+      else if (vip && isSano(players[currentIdx].name) && attempt === 1) menashiChance = 1;
       else menashiChance = (attempt === 1) ? 0.3 : (attempt === 2 ? 0.2 : 0);
       if (rand() < menashiChance)
         return noHandDice();
@@ -552,7 +555,7 @@
     /* その他: 3以下の目が中心。目なし30%は振り直し込みでヒフミが1回の番あたり約8%に収まる配分。
        封印中はヒフミの枠（6）を3の目へ寄せる */
     var table = [
-      { w:30, make: function(){ return NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]; } },
+      { w:forceHand ? 0 : 30, make: function(){ return NO_HAND_COMBOS[Math.floor(rand() * NO_HAND_COMBOS.length)]; } },
       { w:20, make: function(){ return mePair(1); } },
       { w:20, make: function(){ return mePair(2); } },
       { w:STRONG_HANDS ? 24 : 30, make: function(){ return mePair(3); } }
