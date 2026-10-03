@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F5F6F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1117" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ナンプレ">
+<meta name="description" content="ナンプレ（数独）。名前登録・成績保存・デイリーチャレンジ付き。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%232563EB%22/%3E%3Ctext x=%2232%22 y=%2246%22 font-size=%2240%22 font-family=%22Arial%22 font-weight=%22700%22 fill=%22white%22 text-anchor=%22middle%22%3E9%3C/text%3E%3C/svg%3E">
+<style>html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>ナンプレ</title>
+<style>
+/* Layout: one phone-width column (max 448px) centred; tab bar for Home / Daily / Stats; the game is its own full-height screen. */
+:root{
+  --bg:#F5F6F8; --surface:#FFFFFF; --chip:#EDF0F4; --ink:#1A1A1A; --ink-2:#5B6472; --ink-3:#98A1AE;
+  --line:#E0E0E0; --line-strong:#333333; --accent:#2563EB; --accent-ink:#FFFFFF;
+  --sel:#DBEAFE; --area:#EFF6FF; --same:#BFDBFE; --err:#EF4444; --err-soft:#FEE2E2; --ok:#16A34A;
+  --gold:#F59E0B; --shade:rgba(15,23,42,.38); --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 14px rgba(16,24,40,.06);
+  --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Segoe UI",Roboto,"Noto Sans JP",sans-serif;
+  --num:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1117; --surface:#171B23; --chip:#222834; --ink:#E8EBF0; --ink-2:#A7AFBC; --ink-3:#6C7584;
+  --line:#2B313C; --line-strong:#8B94A4; --accent:#5B8DEF; --accent-ink:#0B1020;
+  --sel:#1D3461; --area:#162036; --same:#284A86; --err:#F87171; --err-soft:#47202A; --ok:#4ADE80;
+  --gold:#FBBF24; --shade:rgba(0,0,0,.55); --shadow:0 1px 2px rgba(0,0,0,.4); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1117; --surface:#171B23; --chip:#222834; --ink:#E8EBF0; --ink-2:#A7AFBC; --ink-3:#6C7584;
+  --line:#2B313C; --line-strong:#8B94A4; --accent:#5B8DEF; --accent-ink:#0B1020;
+  --sel:#1D3461; --area:#162036; --same:#284A86; --err:#F87171; --err-soft:#47202A; --ok:#4ADE80;
+  --gold:#FBBF24; --shade:rgba(0,0,0,.55); --shadow:0 1px 2px rgba(0,0,0,.4); color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ic{width:24px;height:24px;flex:none}
+#app{max-width:448px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding-inline:16px}
+.view{flex:1;display:flex;flex-direction:column;gap:18px;padding-block:10px 20px;min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;min-height:44px}
+.brand{font-size:28px;font-weight:800;letter-spacing:.02em;margin:0}
+.icon-btn{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;color:var(--ink-2)}
+.icon-btn:hover{background:var(--chip)}
+h2.sec{font-size:13px;font-weight:700;color:var(--ink-3);letter-spacing:.08em;margin:4px 4px -8px}
+
+/* profile */
+.profile-row{display:flex;align-items:center;gap:12px}
+.avatar{width:48px;height:48px;border-radius:999px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:20px;font-weight:700;flex:none}
+.pr-text{min-width:0;display:flex;flex-direction:column;gap:4px}
+.pr-hello{font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.sync{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-3)}
+.sync .ic{width:14px;height:14px}
+.sync.saved{color:var(--ok)} .sync.error{color:var(--err)}
+
+/* daily card */
+.daily-card{position:relative;overflow:hidden;border-radius:20px;background:var(--accent);color:var(--accent-ink);padding:18px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow)}
+.daily-card::after{content:"";position:absolute;right:-30px;top:-30px;width:150px;height:150px;opacity:.16;
+  background:linear-gradient(currentColor 0 0) 0 33.3%/100% 2px no-repeat,linear-gradient(currentColor 0 0) 0 66.6%/100% 2px no-repeat,
+  linear-gradient(currentColor 0 0) 33.3% 0/2px 100% no-repeat,linear-gradient(currentColor 0 0) 66.6% 0/2px 100% no-repeat;border:2px solid currentColor;border-radius:12px;transform:rotate(12deg)}
+.daily-card .dc-ic{width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.18);display:grid;place-items:center;flex:none}
+.daily-card .dc-ic .ic{width:28px;height:28px}
+.dc-text{flex:1;min-width:0;position:relative;z-index:1}
+.dc-text .t{font-size:13px;opacity:.85}
+.dc-text .d{font-size:20px;font-weight:800;margin-top:2px}
+.dc-btn{position:relative;z-index:1;background:var(--accent-ink);color:var(--accent);font-weight:700;border-radius:999px;padding:10px 18px;flex:none}
+:root .dc-btn{background:#fff;color:#1d4ed8}
+
+/* buttons */
+.cta{display:flex;flex-direction:column;gap:10px}
+.btn{min-height:52px;border-radius:999px;font-weight:700;font-size:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 20px;background:var(--surface);color:var(--accent);border:1.5px solid var(--line);transition:transform .08s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.big{min-height:58px}
+.btn small{font-weight:500;font-size:12px;opacity:.85;margin-top:1px}
+.btn.danger{color:var(--err)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+
+/* list card */
+.card{background:var(--surface);border-radius:16px;box-shadow:var(--shadow)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.list li:last-child{border-bottom:0}
+.li-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--chip);color:var(--ink-2);flex:none}
+.li-ic .ic{width:18px;height:18px}
+.li-ic.win{background:var(--sel);color:var(--accent)}
+.li-ic.lose{background:var(--err-soft);color:var(--err)}
+.li-main{flex:1;min-width:0}
+.li-main .a{font-weight:600;font-size:15px}
+.li-main .b{font-size:12px;color:var(--ink-3);margin-top:2px}
+.li-val{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.empty{padding:22px 16px;text-align:center;color:var(--ink-3);font-size:14px;line-height:1.6}
+
+/* tab bar */
+.tabbar{position:sticky;bottom:0;margin-inline:-16px;display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));z-index:5}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;color:var(--ink-3);font-size:11px;font-weight:600}
+.tab[aria-current="page"]{color:var(--accent)}
+
+/* game */
+.view.game{gap:10px;padding-block:4px 12px}
+.view.game .g-head{margin-bottom:auto}
+.view.game .pad{margin-bottom:auto}
+.g-head{display:grid;grid-template-columns:40px 1fr 40px;align-items:center;min-height:44px}
+.g-title{text-align:center;font-weight:700;font-size:17px}
+.info{display:grid;grid-template-columns:repeat(3,1fr) 40px;align-items:center;text-align:center;padding-inline:4px}
+.info .k{font-size:12px;color:var(--ink-3)}
+.info .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.info .v.bad{color:var(--err)}
+.pause-btn{width:36px;height:36px;border-radius:999px;background:var(--chip);display:grid;place-items:center;color:var(--ink-2);justify-self:end}
+.pause-btn .ic{width:16px;height:16px}
+
+.board-wrap{width:100%;max-width:max(280px,calc(100dvh - 330px));margin-inline:auto}
+.board{position:relative;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:1;width:100%;max-width:100%;background:var(--surface);border:2px solid var(--line-strong);border-radius:6px;overflow:hidden;container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.cell{position:relative;min-width:0;min-height:0;overflow:hidden;display:grid;place-items:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-family:var(--num);font-size:calc(100cqw / 9 * .6);line-height:1;cursor:pointer;color:var(--accent);background:var(--surface);transition:background-color .1s}
+.cell:nth-child(9n){border-right:0}
+.cell:nth-child(n+73){border-bottom:0}
+.cell.area{background:var(--area)}
+.cell.same{background:var(--same)}
+.cell.conflict{background:var(--err-soft)}
+.cell.sel{background:var(--sel);box-shadow:inset 0 0 0 2px var(--accent)}
+.cell.given{color:var(--ink);font-weight:600}
+.cell.wrong{color:var(--err)}
+.cell .d{display:inline-block}
+.notes{position:absolute;inset:1px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr)}
+.notes span{display:grid;place-items:center;font-size:calc(100cqw / 9 * .27);color:var(--ink-2);font-weight:500;line-height:1}
+.notes span.hit{color:var(--accent-ink);background:var(--accent);border-radius:3px;font-weight:700;margin:1px}
+.bl{position:absolute;background:var(--line-strong);pointer-events:none;z-index:2}
+.bl.v{top:0;bottom:0;width:2px}.bl.h{left:0;right:0;height:2px}
+.bl.v1{left:calc(100% / 3 - 1px)}.bl.v2{left:calc(200% / 3 - 1px)}
+.bl.h1{top:calc(100% / 3 - 1px)}.bl.h2{top:calc(200% / 3 - 1px)}
+.board.paused .cell>*{visibility:hidden}
+.board.paused .cell{background:var(--surface);box-shadow:none}
+.pause-ov{position:absolute;inset:0;z-index:3;display:grid;place-items:center;align-content:center;gap:12px;background:color-mix(in srgb,var(--surface) 70%,transparent);backdrop-filter:blur(2px)}
+.pause-ov .play{width:72px;height:72px;border-radius:999px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;box-shadow:var(--shadow)}
+.pause-ov .play .ic{width:30px;height:30px;margin-left:4px}
+.pause-ov .lbl{font-weight:700;color:var(--ink-2)}
+.board.busy::after{content:"盤面を作成中…";position:absolute;inset:0;z-index:4;display:grid;place-items:center;background:var(--surface);color:var(--ink-3);font-weight:600}
+
+@keyframes pop{0%{transform:scale(.5)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+@keyframes flash{0%{background:var(--surface)}35%{background:var(--same)}100%{background:var(--surface)}}
+.cell.pop .d{animation:pop .24s ease-out}
+.cell.shake .d{animation:shake .32s ease-in-out}
+.cell.flash{animation:flash .55s ease-out both}
+
+.tools{display:grid;grid-template-columns:repeat(4,1fr);padding-top:6px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink-2);font-size:12px;font-weight:600;padding:6px 0;border-radius:14px}
+.tool:hover{background:var(--chip)}
+.tool .tw{position:relative;width:48px;height:48px;border-radius:999px;display:grid;place-items:center;background:var(--chip)}
+.tool.on .tw{background:var(--sel);color:var(--accent)}
+.tool.on{color:var(--accent)}
+.badge{position:absolute;top:-4px;right:-10px;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--ink-3);color:var(--surface);font-size:10px;font-weight:800;display:grid;place-items:center;border:2px solid var(--bg)}
+.tool.on .badge,.badge.hint{background:var(--accent);color:var(--accent-ink)}
+.badge.zero{background:var(--ink-3)}
+
+.pad{display:grid;grid-template-columns:repeat(9,1fr);gap:2px}
+.key{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 0 4px;border-radius:12px;color:var(--accent);font-family:var(--num);transition:transform .06s,background-color .1s}
+.key:hover{background:var(--chip)}
+.key:active{transform:scale(.92);background:var(--sel)}
+.key .n{font-size:clamp(28px,9vw,40px);line-height:1.05;font-weight:400}
+.key .c{font-size:11px;color:var(--ink-3);font-family:var(--font);font-weight:600;min-height:14px}
+.pad.memo .key .n{color:var(--ink-2);font-size:clamp(22px,7vw,30px)}
+.key.done{visibility:hidden}
+
+/* segmented + chips */
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--chip);border-radius:12px;padding:3px}
+.seg button{padding:8px 0;border-radius:10px;font-weight:700;font-size:14px;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chip{flex:none;padding:8px 14px;border-radius:999px;background:var(--surface);border:1.5px solid var(--line);font-weight:600;font-size:14px;color:var(--ink-2)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.rank{width:28px;text-align:center;font-weight:800;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.rank.r1{color:var(--gold)}
+.list li.me{background:var(--area)}
+.me-tag{font-size:11px;font-weight:700;color:var(--accent);margin-left:6px}
+
+/* daily */
+.cal-head{display:flex;align-items:center;justify-content:space-between}
+.cal-head .m{font-size:18px;font-weight:800}
+.cal-head button:disabled{opacity:.3;cursor:default}
+.progress{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);font-weight:600}
+.bar{flex:1;height:8px;border-radius:999px;background:var(--chip);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--gold);border-radius:999px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px 0;padding:14px 8px}
+.cal .w{text-align:center;font-size:12px;color:var(--ink-3);font-weight:700;padding-bottom:4px}
+.day{justify-self:center;width:40px;height:40px;border-radius:999px;display:grid;place-items:center;font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;position:relative}
+.day:disabled{color:var(--ink-3);opacity:.45;cursor:default}
+.day.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.day.done{background:var(--gold);color:#1a1300}
+.day.picked{background:var(--accent);color:var(--accent-ink)}
+.day.done.picked{box-shadow:0 0 0 3px var(--accent)}
+.daily-pick{display:flex;align-items:center;gap:12px;padding:14px}
+
+/* stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.stat .k{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-3);font-weight:700}
+.stat .k .ic{width:16px;height:16px}
+.stat .v{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* sheet */
+.sheet-wrap{position:fixed;inset:0;z-index:20}
+.sheet-backdrop{position:absolute;inset:0;background:var(--shade);opacity:0;transition:opacity .2s}
+.sheet{position:absolute;left:0;right:0;bottom:0;margin-inline:auto;max-width:448px;max-height:88%;overflow:auto;background:var(--surface);border-radius:22px 22px 0 0;padding:10px 16px calc(20px + env(safe-area-inset-bottom,0px));transform:translateY(100%);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+.sheet-wrap.open .sheet{transform:none}
+.sheet-wrap.open .sheet-backdrop{opacity:1}
+.grab{width:40px;height:5px;border-radius:999px;background:var(--line);margin:0 auto 12px}
+.sh-title{font-size:20px;font-weight:800;text-align:center;margin:4px 0 6px;text-wrap:balance}
+.sh-sub{font-size:14px;color:var(--ink-2);text-align:center;line-height:1.6;margin:0 0 16px;text-wrap:balance}
+.sh-stack{display:flex;flex-direction:column;gap:10px}
+.diff-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:var(--bg);text-align:left}
+.diff-row:hover{background:var(--chip)}
+.diff-row .pips{display:flex;gap:3px}
+.diff-row .pips i{width:6px;height:16px;border-radius:2px;background:var(--line)}
+.diff-row .pips i.on{background:var(--accent)}
+.diff-row .nm{flex:1;font-weight:700;font-size:16px}
+.diff-row .bt{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:700;color:var(--ink-2)}
+.input{height:50px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:17px;padding:0 14px;width:100%;box-sizing:border-box}
+.input:focus{border-color:var(--accent);outline:none}
+.hint-text{font-size:12px;color:var(--ink-3)}
+.err-text{font-size:12px;color:var(--err);min-height:16px}
+.set-list li{padding:14px}
+.switch{position:relative;width:50px;height:30px;flex:none}
+.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.switch span{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .15s;pointer-events:none}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:999px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.switch input:checked+span{background:var(--accent)}
+.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.result-hero{display:grid;place-items:center;gap:6px;padding:8px 0 4px}
+.result-hero .medal{width:76px;height:76px;border-radius:999px;background:var(--gold);color:#1a1300;display:grid;place-items:center}
+.result-hero .medal .ic{width:38px;height:38px}
+.result-hero .medal.lose{background:var(--err-soft);color:var(--err)}
+.pill{display:inline-block;background:var(--gold);color:#1a1300;font-weight:800;font-size:12px;padding:3px 10px;border-radius:999px}
+.res-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 18px}
+.res-grid div{background:var(--bg);border-radius:14px;padding:10px 6px;text-align:center}
+.res-grid .k{font-size:11px;color:var(--ink-3);font-weight:700}
+.res-grid .v{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px}
+
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:var(--shadow);max-width:calc(100% - 32px);text-align:center}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div id="app">
+  <main id="view-home" class="view" aria-label="ホーム">
+    <header class="topbar">
+      <h1 class="brand">ナンプレ</h1>
+      <button class="icon-btn" data-act="settings" aria-label="設定" id="home-settings"></button>
+    </header>
+    <div class="profile-row">
+      <button class="avatar" id="home-avatar" data-act="edit-name" aria-label="名前を変更"></button>
+      <div class="pr-text">
+        <button class="pr-hello" id="home-hello" data-act="edit-name"></button>
+        <span class="sync" id="sync-chip"></span>
+      </div>
+    </div>
+    <section class="daily-card" id="home-daily"></section>
+    <div class="cta">
+      <button class="btn primary big" id="btn-continue" data-act="continue" hidden><span>続ける</span><small id="continue-sub"></small></button>
+      <button class="btn big" id="btn-new" data-act="new">新しいゲーム</button>
+    </div>
+    <h2 class="sec">最近のプレイ</h2>
+    <section class="card"><ul class="list" id="recent-list"></ul></section>
+  </main>
+
+  <main id="view-daily" class="view" aria-label="デイリーチャレンジ" hidden>
+    <header class="topbar"><h1 class="brand">デイリー</h1></header>
+    <section class="card">
+      <div style="padding:14px 14px 0" class="cal-head">
+        <button class="icon-btn" id="cal-prev" aria-label="前の月"></button>
+        <div class="m" id="cal-month"></div>
+        <button class="icon-btn" id="cal-next" aria-label="次の月"></button>
+      </div>
+      <div style="padding:10px 16px 0" class="progress"><span id="cal-trophy"></span><div class="bar"><i id="cal-bar"></i></div><span id="cal-count"></span></div>
+      <div class="cal" id="cal-grid"></div>
+    </section>
+    <section class="card daily-pick" id="daily-pick"></section>
+  </main>
+
+  <main id="view-stats" class="view" aria-label="統計" hidden>
+    <header class="topbar"><h1 class="brand">統計</h1></header>
+    <div class="seg" role="group" aria-label="表示切替">
+      <button id="seg-stats" aria-pressed="true">自分の成績</button>
+      <button id="seg-rank" aria-pressed="false">ランキング</button>
+    </div>
+    <div class="chips" id="diff-chips" role="group" aria-label="難易度"></div>
+    <div id="stats-body"></div>
+  </main>
+
+  <main id="view-game" class="view game" aria-label="ゲーム" hidden>
+    <header class="g-head">
+      <button class="icon-btn" data-act="back" aria-label="ホームに戻る" id="g-back"></button>
+      <div class="g-title" id="g-title"></div>
+      <button class="icon-btn" data-act="settings" aria-label="設定" id="g-settings"></button>
+    </header>
+    <div class="info">
+      <div><div class="k">ミス</div><div class="v" id="g-mis">0/3</div></div>
+      <div><div class="k">スコア</div><div class="v" id="g-score">0</div></div>
+      <div><div class="k">時間</div><div class="v" id="g-time">00:00</div></div>
+      <button class="pause-btn" id="g-pause" aria-label="一時停止"></button>
+    </div>
+    <div class="board-wrap"><div class="board" id="board" role="grid" aria-label="ナンプレの盤面"></div></div>
+    <div class="tools">
+      <button class="tool" id="t-undo"><span class="tw"></span>元に戻す</button>
+      <button class="tool" id="t-erase"><span class="tw"></span>消去</button>
+      <button class="tool" id="t-notes"><span class="tw"><b class="badge" id="notes-badge">OFF</b></span>メモ</button>
+      <button class="tool" id="t-hint"><span class="tw"><b class="badge hint" id="hint-badge">3</b></span>ヒント</button>
+    </div>
+    <div class="pad" id="pad"></div>
+  </main>
+
+  <nav class="tabbar" id="tabbar" aria-label="メニュー">
+    <button class="tab" data-tab="home"></button>
+    <button class="tab" data-tab="daily"></button>
+    <button class="tab" data-tab="stats"></button>
+  </nav>
+</div>
+
+<div class="sheet-wrap" id="sheet" hidden>
+  <div class="sheet-backdrop" id="sheet-bd"></div>
+  <div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div><div id="sheet-body"></div></div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+'use strict';
+/* ---------- helpers ---------- */
+const HAS_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const pad2 = n => String(n).padStart(2, '0');
+const fmt = t => { if (t == null) return '--:--'; t = Math.max(0, Math.floor(t)); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return h ? `${h}:${pad2(m)}:${pad2(s)}` : `${pad2(m)}:${pad2(s)}`; };
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const jpDate = s => { const d = parseYmd(s); return `${d.getMonth() + 1}月${d.getDate()}日`; };
+const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const ICONS = {
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  eraser:'<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  bulb:'<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  pause:'<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  left:'<path d="m15 18-6-6 6-6"/>', right:'<path d="m9 18 6-6-6-6"/>',
+  gear:'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  home:'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  cal:'<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  chart:'<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  trophy:'<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+  cloud:'<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+  phone:'<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>', x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  flame:'<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  grid:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  timer:'<path d="M10 2h4"/><path d="M12 14l3-3"/><circle cx="12" cy="14" r="8"/>',
+  heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>'
+};
+const I = (n, extra = '') => `<svg class="ic" ${extra} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+
+/* ---------- sudoku core ---------- */
+const DIFFS = {
+  easy:   { label:'簡単',       clues:[38,41], base:10, note:'ルールに慣れたい方に', pips:1 },
+  medium: { label:'普通',       clues:[31,34], base:20, note:'ほどよく考えるバランス型', pips:2 },
+  hard:   { label:'難しい',     clues:[27,29], base:35, note:'メモを使いこなす上級者向け', pips:3 },
+  expert: { label:'エキスパート', clues:[23,25], base:50, note:'ヒントの少ない最難関', pips:4 }
+};
+const ORDER = ['easy','medium','hard','expert'];
+const DAILY_DIFF = ['hard','easy','medium','medium','hard','medium','expert']; // 日〜土
+const MAX_MISTAKES = 3, HINTS = 3;
+
+const UNITS = { row:[], col:[], box:[] };
+for (let k = 0; k < 9; k++) { UNITS.row.push([]); UNITS.col.push([]); UNITS.box.push([]); }
+const RC = [];
+for (let i = 0; i < 81; i++) { const r = i / 9 | 0, c = i % 9, b = (r / 3 | 0) * 3 + (c / 3 | 0); RC.push([r, c, b]); UNITS.row[r].push(i); UNITS.col[c].push(i); UNITS.box[b].push(i); }
+const PEERS = RC.map(([r, c, b], i) => { const s = new Set([...UNITS.row[r], ...UNITS.col[c], ...UNITS.box[b]]); s.delete(i); return [...s]; });
+const POP = new Uint8Array(512); for (let m = 1; m < 512; m++) POP[m] = POP[m >> 1] + (m & 1);
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 1779033703 ^ s.length; for (let i = 0; i < s.length; i++) { h = Math.imul(h ^ s.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; } return h >>> 0; }
+function shuffle(a, rng) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function countSolutions(src, limit) {
+  const g = Int8Array.from(src), R = new Uint16Array(9), C = new Uint16Array(9), B = new Uint16Array(9);
+  for (let i = 0; i < 81; i++) { const v = g[i]; if (!v) continue; const bit = 1 << (v - 1), [r, c, b] = RC[i]; if ((R[r] | C[c] | B[b]) & bit) return 0; R[r] |= bit; C[c] |= bit; B[b] |= bit; }
+  let count = 0;
+  (function rec() {
+    let best = -1, bm = 0, bn = 10;
+    for (let i = 0; i < 81; i++) {
+      if (g[i]) continue;
+      const [r, c, b] = RC[i], m = ~(R[r] | C[c] | B[b]) & 511, n = POP[m];
+      if (n === 0) return;
+      if (n < bn) { bn = n; best = i; bm = m; if (n === 1) break; }
+    }
+    if (best < 0) { count++; return; }
+    const [r, c, b] = RC[best];
+    let m = bm;
+    while (m) {
+      const bit = m & -m; m ^= bit;
+      g[best] = 32 - Math.clz32(bit); R[r] |= bit; C[c] |= bit; B[b] |= bit;
+      rec();
+      R[r] ^= bit; C[c] ^= bit; B[b] ^= bit; g[best] = 0;
+      if (count >= limit) return;
+    }
+  })();
+  return count;
+}
+function fullGrid(rng) {
+  const g = new Int8Array(81), R = new Uint16Array(9), C = new Uint16Array(9), B = new Uint16Array(9);
+  (function rec(i) {
+    if (i === 81) return true;
+    const [r, c, b] = RC[i], m = ~(R[r] | C[c] | B[b]) & 511, ds = [];
+    for (let d = 0; d < 9; d++) if (m & (1 << d)) ds.push(d);
+    for (const d of shuffle(ds, rng)) {
+      const bit = 1 << d; g[i] = d + 1; R[r] |= bit; C[c] |= bit; B[b] |= bit;
+      if (rec(i + 1)) return true;
+      R[r] ^= bit; C[c] ^= bit; B[b] ^= bit;
+    }
+    g[i] = 0; return false;
+  })(0);
+  return g;
+}
+function generate(diff, rng) {
+  const [lo, hi] = DIFFS[diff].clues, target = lo + Math.floor(rng() * (hi - lo + 1));
+  let best = null;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const sol = fullGrid(rng), puz = Int8Array.from(sol);
+    let clues = 81;
+    for (const i of shuffle([...Array(81).keys()], rng)) {
+      if (clues <= target) break;
+      const v = puz[i]; puz[i] = 0;
+      if (countSolutions(puz, 2) !== 1) puz[i] = v; else clues--;
+    }
+    if (!best || clues < best.clues) best = { sol, puz, clues };
+    if (clues <= target) break;
+  }
+  return { puzzle: Array.from(best.puz).join(''), solution: Array.from(best.sol).join('') };
+}
+
+/* ---------- state ---------- */
+const DEFAULT_SETTINGS = { mistakeLimit:true, autoNotes:true, hlSame:true, hlArea:true, hlConflict:true, showTimer:true };
+const emptyStat = () => ({ started:0, won:0, perfect:0, bestTime:null, totalTime:0, streak:0, bestStreak:0 });
+const defaultProfile = () => ({ nickname:'', nameAsked:false, createdAt:Date.now(), updatedAt:0, settings:{ ...DEFAULT_SETTINGS }, stats:Object.fromEntries(ORDER.map(d => [d, emptyStat()])), daily:{}, recent:[] });
+function normalizeProfile(p) {
+  const d = defaultProfile();
+  if (!p || typeof p !== 'object') return d;
+  return {
+    ...d, ...p,
+    nickname: typeof p.nickname === 'string' ? p.nickname.slice(0, 12) : '',
+    settings: { ...d.settings, ...(p.settings || {}) },
+    stats: Object.fromEntries(ORDER.map(k => [k, { ...emptyStat(), ...((p.stats || {})[k] || {}) }])),
+    daily: { ...(p.daily || {}) },
+    recent: Array.isArray(p.recent) ? p.recent.slice(0, 20) : []
+  };
+}
+function normalizeGame(g) {
+  if (!g || typeof g !== 'object' || g.status !== 'playing') return null;
+  if (typeof g.puzzle !== 'string' || g.puzzle.length !== 81 || typeof g.solution !== 'string' || g.solution.length !== 81) return null;
+  if (!Array.isArray(g.values) || g.values.length !== 81 || !Array.isArray(g.notes) || g.notes.length !== 81) return null;
+  if (!DIFFS[g.diff]) return null;
+  return { hinted:[], history:[], mistakes:0, hints:HINTS, score:0, elapsed:0, secondChance:false, notesMode:false, sel:-1, ...g };
+}
+
+let profile = defaultProfile();
+let G = null;                 // current game
+let view = 'home';
+let paused = false;
+let statsMode = 'stats', statsDiff = 'easy';
+let calMonth = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
+let calPick = ymd(new Date());
+let leaderboard = [];
+const cloud = { uid:null, profRef:null, saveRef:null, scoreRef:null, mode:'connecting' };
+
+const S = () => profile.settings;
+const displayName = () => profile.nickname || 'プレイヤー';
+const isGiven = i => G.puzzle[i] !== '0';
+const solAt = i => +G.solution[i];
+const isLocked = i => isGiven(i) || (G.values[i] !== 0 && G.values[i] === solAt(i));
+
+/* ---------- persistence ---------- */
+const LS_KEY = 'nampure-save-v1';
+function loadLocal() {
+  try { const raw = localStorage.getItem(LS_KEY); if (!raw) return; const d = JSON.parse(raw); profile = normalizeProfile(d.profile); G = normalizeGame(d.game); } catch (e) {}
+}
+function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify({ profile, game: G && G.status === 'playing' ? G : null })); } catch (e) {} }
+
+const writers = {};
+function cloudWrite(key, ref, data, quiet) {
+  const w = writers[key] || (writers[key] = { pending:null, busy:false });
+  w.pending = { ref, data };
+  if (w.busy) return;
+  w.busy = true;
+  (async () => {
+    while (w.pending) {
+      const job = w.pending; w.pending = null;
+      if (!quiet) setSync('saving');
+      let ok = false;
+      for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+        try { await job.ref.set(job.data); ok = true; }
+        catch (e) { if (e && e.code === 'unavailable' && attempt === 0) await sleep(700 + Math.random() * 800); else break; }
+      }
+      if (!quiet) setSync(ok ? 'saved' : 'error');
+    }
+    w.busy = false;
+  })();
+}
+let profTimer = 0, gameTimer = 0;
+function persistProfile() {
+  profile.updatedAt = Date.now();
+  saveLocal();
+  if (cloud.profRef) { clearTimeout(profTimer); profTimer = setTimeout(() => cloudWrite('p', cloud.profRef, clone(profile)), 400); }
+}
+function gamePayload() {
+  if (!G || G.status !== 'playing') return { game:null, updatedAt:Date.now() };
+  const g = clone(G); g.history = g.history.slice(-120);
+  return { game:g, updatedAt:G.updatedAt || Date.now() };
+}
+function persistGame(immediate) {
+  if (G) G.updatedAt = Date.now();
+  saveLocal();
+  if (!cloud.saveRef) return;
+  clearTimeout(gameTimer);
+  const go = () => cloudWrite('g', cloud.saveRef, gamePayload());
+  if (immediate) go(); else gameTimer = setTimeout(go, 1200);
+}
+function pushScore() {
+  if (!cloud.scoreRef) return;
+  const best = {}, wins = {};
+  ORDER.forEach(d => { best[d] = profile.stats[d].bestTime; wins[d] = profile.stats[d].won; });
+  if (!ORDER.some(d => wins[d] > 0)) return;
+  cloudWrite('s', cloud.scoreRef, { nickname: displayName(), best, wins, updatedAt: Date.now() }, true);
+}
+function setSync(state) { cloud.mode = state; renderSync(); }
+
+async function connectCloud() {
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function') { setSync('local'); return; }
+  try {
+    const [user, db] = await Promise.all([c.use('user'), c.use('db')]);
+    if (!user || !db) { setSync('local'); return; }
+    const uid = await user.id();
+    if (!uid) { setSync('local'); return; }
+    const base = 'data/users/' + uid;
+    const profRef = db.doc(base + '/profile'), saveRef = db.doc(base + '/save');
+    const [ps, ss] = await Promise.all([profRef.get(), saveRef.get()]);
+    let pushProfile = true, pushGame = true;
+    if (ps.exists) {
+      const cp = normalizeProfile(clone(ps.data()));
+      if ((cp.updatedAt || 0) >= (profile.updatedAt || 0)) { profile = cp; pushProfile = false; }
+    }
+    if (ss.exists) {
+      const d = clone(ss.data()), cu = d.updatedAt || 0;
+      if (cu >= (G ? G.updatedAt || 0 : 0)) {
+        G = normalizeGame(d.game);
+        pushGame = false;
+      }
+    }
+    cloud.uid = uid; cloud.profRef = profRef; cloud.saveRef = saveRef; cloud.scoreRef = db.doc('scores/' + uid);
+    setSync('saved');
+    saveLocal();
+    if (pushProfile && (profile.updatedAt || profile.nickname)) cloudWrite('p', profRef, clone(profile));
+    if (pushGame && G) cloudWrite('g', saveRef, gamePayload());
+    db.collection('scores').onSnapshot(snap => {
+      leaderboard = snap.docs.map(d => ({ id:d.id, ...(d.data() || {}) }));
+      if (view === 'stats') renderStats();
+    }, () => {});
+    if (view === 'game' && !G) showView('home');
+    rerender();
+    if (profile.nickname && sheetKind === 'welcome') closeSheet();
+  } catch (e) { setSync('local'); }
+}
+
+/* ---------- views ---------- */
+function showView(v) {
+  view = v;
+  for (const id of ['home','daily','stats','game']) $('#view-' + id).hidden = id !== v;
+  $('#tabbar').hidden = v === 'game';
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-current', t.dataset.tab === v ? 'page' : 'false'));
+  rerender();
+  syncTimer();
+  window.scrollTo(0, 0);
+}
+function rerender() {
+  if (view === 'home') renderHome();
+  else if (view === 'daily') renderDaily();
+  else if (view === 'stats') renderStats();
+  else if (view === 'game' && G) renderGame();
+}
+function renderSync() {
+  const el = $('#sync-chip'); if (!el) return;
+  const m = cloud.mode;
+  const map = {
+    connecting:['cloud','保存先を確認中…',''], saving:['cloud','保存中…',''], saved:['check','クラウドに保存済み','saved'],
+    error:['x','クラウド保存に失敗（この端末には保存済み）','error'], local:['phone','この端末に保存しています（ブラウザを変えると引き継げません）','']
+  };
+  const [ic, txt, cls] = map[m] || map.local;
+  el.className = 'sync ' + cls;
+  el.innerHTML = I(ic) + esc(txt);
+}
+
+function renderHome() {
+  const name = displayName();
+  $('#home-avatar').textContent = name.slice(0, 1);
+  $('#home-hello').textContent = profile.nickname ? `こんにちは、${name}さん` : '名前を登録する';
+  renderSync();
+  const today = ymd(new Date()), done = profile.daily[today];
+  const dd = DIFFS[DAILY_DIFF[new Date().getDay()]].label;
+  $('#home-daily').innerHTML = `<div class="dc-ic">${I(done ? 'check' : 'trophy')}</div>
+    <div class="dc-text"><div class="t">デイリーチャレンジ</div><div class="d">${esc(jpDate(today))}</div><div class="t" style="margin-top:2px">${esc(dd)}</div></div>
+    <button class="dc-btn" data-act="daily-today">${done ? 'クリア ' + fmt(done.t) : 'プレイ'}</button>`;
+  const cont = $('#btn-continue');
+  if (G && G.status === 'playing') {
+    cont.hidden = false;
+    $('#continue-sub').textContent = `${G.daily ? 'デイリー ' + jpDate(G.daily) : DIFFS[G.diff].label} · ${fmt(G.elapsed)}`;
+    $('#btn-new').className = 'btn big';
+  } else {
+    cont.hidden = true;
+    $('#btn-new').className = 'btn primary big';
+  }
+  const list = $('#recent-list');
+  if (!profile.recent.length) {
+    list.innerHTML = `<li class="empty" style="display:block">まだ記録がありません。<br>クリアしたゲームのタイムとスコアがここに残ります。</li>`;
+  } else {
+    list.innerHTML = profile.recent.slice(0, 6).map(r => `<li>
+      <span class="li-ic ${r.won ? 'win' : 'lose'}">${I(r.won ? 'trophy' : 'x')}</span>
+      <div class="li-main"><div class="a">${esc(r.daily ? 'デイリー ' + jpDate(r.daily) : DIFFS[r.d] ? DIFFS[r.d].label : '')}${r.won ? '' : '<span style="color:var(--err);font-weight:600"> · ゲームオーバー</span>'}</div>
+      <div class="b">${esc(relTime(r.at))}${r.won ? ' · スコア ' + (r.s || 0).toLocaleString() : ''}</div></div>
+      <span class="li-val">${fmt(r.t)}</span></li>`).join('');
+  }
+}
+function relTime(at) {
+  const d = new Date(at), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  const hm = `${d.getHours()}:${pad2(d.getMinutes())}`;
+  if (days === 0) return '今日 ' + hm;
+  if (days === 1) return '昨日 ' + hm;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+/* daily */
+function renderDaily() {
+  const y = calMonth.getFullYear(), m = calMonth.getMonth(), now = new Date();
+  const todayS = ymd(now), daysIn = new Date(y, m + 1, 0).getDate(), first = new Date(y, m, 1).getDay();
+  $('#cal-month').textContent = `${y}年${m + 1}月`;
+  $('#cal-next').disabled = y === now.getFullYear() && m === now.getMonth();
+  const lastPlayable = (y === now.getFullYear() && m === now.getMonth()) ? now.getDate() : daysIn;
+  let done = 0;
+  let html = ['日','月','火','水','木','金','土'].map(w => `<div class="w">${w}</div>`).join('');
+  for (let i = 0; i < first; i++) html += '<div></div>';
+  for (let d = 1; d <= daysIn; d++) {
+    const s = `${y}-${pad2(m + 1)}-${pad2(d)}`, isDone = !!profile.daily[s];
+    if (isDone) done++;
+    const cls = ['day', isDone && 'done', s === todayS && 'today', s === calPick && 'picked'].filter(Boolean).join(' ');
+    html += `<button class="${cls}" data-day="${s}" ${d > lastPlayable ? 'disabled' : ''} aria-label="${m + 1}月${d}日${isDone ? ' クリア済み' : ''}">${d}</button>`;
+  }
+  $('#cal-grid').innerHTML = html;
+  $('#cal-trophy').innerHTML = I('trophy', 'style="width:18px;height:18px;color:var(--gold)"');
+  $('#cal-bar').style.width = (done / daysIn * 100) + '%';
+  $('#cal-count').textContent = `${done}/${daysIn}`;
+  const rec = profile.daily[calPick], diff = DAILY_DIFF[parseYmd(calPick).getDay()];
+  const playingThis = G && G.status === 'playing' && G.daily === calPick;
+  $('#daily-pick').innerHTML = `<span class="li-ic ${rec ? 'win' : ''}">${I(rec ? 'check' : 'cal')}</span>
+    <div class="li-main"><div class="a">${esc(jpDate(calPick))}のチャレンジ</div>
+    <div class="b">${esc(DIFFS[diff].label)}${rec ? ' · ベスト ' + fmt(rec.t) : playingThis ? ' · プレイ中 ' + fmt(G.elapsed) : ''}</div></div>
+    <button class="btn primary" style="min-height:44px" data-act="daily-play">${playingThis ? '続ける' : rec ? 'もう一度' : 'プレイ'}</button>`;
+}
+
+/* stats */
+function renderStats() {
+  $('#seg-stats').setAttribute('aria-pressed', statsMode === 'stats');
+  $('#seg-rank').setAttribute('aria-pressed', statsMode === 'rank');
+  $('#diff-chips').innerHTML = ORDER.map(d => `<button class="chip" data-diff="${d}" aria-pressed="${d === statsDiff}">${DIFFS[d].label}</button>`).join('');
+  const body = $('#stats-body');
+  if (statsMode === 'stats') {
+    const st = profile.stats[statsDiff];
+    const rate = st.started ? Math.round(st.won / st.started * 100) + '%' : '0%';
+    const avg = st.won ? fmt(st.totalTime / st.won) : '--:--';
+    const tile = (ic, k, v) => `<div class="stat"><div class="k">${I(ic)}${k}</div><div class="v">${v}</div></div>`;
+    body.innerHTML = `<div class="sh-stack">
+      <h2 class="sec" style="margin-bottom:0">ゲーム</h2>
+      <div class="stat-grid">${tile('grid', '開始したゲーム', st.started)}${tile('trophy', 'クリア', st.won)}${tile('target', '勝率', rate)}${tile('star', 'ノーミスでクリア', st.perfect)}</div>
+      <h2 class="sec" style="margin-bottom:0">時間</h2>
+      <div class="stat-grid">${tile('timer', 'ベストタイム', fmt(st.bestTime))}${tile('clock', '平均タイム', avg)}</div>
+      <h2 class="sec" style="margin-bottom:0">連勝</h2>
+      <div class="stat-grid">${tile('flame', '現在の連勝', st.streak)}${tile('flame', '最高連勝', st.bestStreak)}</div>
+      <button class="btn ghost danger" data-act="reset-stats" style="margin-top:6px">${esc(DIFFS[statsDiff].label)}の統計をリセット</button>
+    </div>`;
+  } else {
+    if (!cloud.scoreRef) {
+      body.innerHTML = `<section class="card"><div class="empty">ランキングはClaudeにログインして開いたときに表示されます。<br>成績はこの端末にちゃんと保存されています。</div></section>`;
+      return;
+    }
+    const rows = leaderboard.filter(r => r.best && typeof r.best[statsDiff] === 'number')
+      .sort((a, b) => a.best[statsDiff] - b.best[statsDiff]).slice(0, 50);
+    if (!rows.length) {
+      body.innerHTML = `<section class="card"><div class="empty">${esc(DIFFS[statsDiff].label)}の記録はまだありません。<br>クリアするとベストタイムがここに載ります。</div></section>`;
+      return;
+    }
+    body.innerHTML = `<section class="card"><ul class="list">${rows.map((r, i) => {
+      const me = r.id === cloud.uid;
+      const nm = (me ? displayName() : (typeof r.nickname === 'string' && r.nickname.trim() ? r.nickname : 'プレイヤー')).slice(0, 12);
+      return `<li class="${me ? 'me' : ''}"><span class="rank ${i === 0 ? 'r1' : ''}">${i + 1}</span>
+        <div class="li-main"><div class="a">${esc(nm)}${me ? '<span class="me-tag">あなた</span>' : ''}</div>
+        <div class="b">クリア ${(r.wins && r.wins[statsDiff]) || 0}回</div></div>
+        <span class="li-val">${fmt(r.best[statsDiff])}</span></li>`;
+    }).join('')}</ul></section>`;
+  }
+}
+
+/* ---------- game screen ---------- */
+const board = $('#board');
+const cells = [];
+(function buildBoard() {
+  for (let i = 0; i < 81; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell'; c.dataset.i = i; c.setAttribute('role', 'gridcell');
+    c.addEventListener('animationend', e => c.classList.remove(e.animationName));
+    board.appendChild(c); cells.push(c);
+  }
+  board.insertAdjacentHTML('beforeend', '<i class="bl v v1"></i><i class="bl v v2"></i><i class="bl h h1"></i><i class="bl h h2"></i><div class="pause-ov" id="pause-ov" hidden><button class="play" data-act="resume" aria-label="再開">' + I('play') + '</button><div class="lbl">一時停止中</div></div>');
+  $('#pad').innerHTML = Array.from({ length: 9 }, (_, k) => `<button class="key" data-n="${k + 1}" aria-label="${k + 1}"><span class="n">${k + 1}</span><span class="c"></span></button>`).join('');
+})();
+const cellKey = new Array(81).fill('');
+
+function renderGame() {
+  if (!G) return;
+  $('#g-title').textContent = G.daily ? `デイリー ${jpDate(G.daily)}` : DIFFS[G.diff].label;
+  renderInfo(); renderBoard(); renderTools();
+}
+function renderInfo() {
+  const lim = S().mistakeLimit;
+  const mis = $('#g-mis');
+  mis.textContent = lim ? `${G.mistakes}/${MAX_MISTAKES}` : String(G.mistakes);
+  mis.classList.toggle('bad', G.mistakes > 0);
+  $('#g-score').textContent = G.score.toLocaleString();
+  renderTimer();
+  $('#g-pause').innerHTML = I(paused ? 'play' : 'pause');
+  $('#g-pause').setAttribute('aria-label', paused ? '再開' : '一時停止');
+}
+function renderTimer() {
+  const t = $('#g-time');
+  t.textContent = S().showTimer ? fmt(G.elapsed) : '––:––';
+}
+function renderBoard() {
+  const s = G.sel, set = S();
+  const selV = s >= 0 ? G.values[s] : 0;
+  const [sr, sc, sb] = s >= 0 ? RC[s] : [-1, -1, -1];
+  const conflict = new Set();
+  if (set.hlConflict) {
+    for (let i = 0; i < 81; i++) {
+      const v = G.values[i];
+      if (v && v !== solAt(i)) for (const p of PEERS[i]) if (G.values[p] === v) { conflict.add(p); }
+    }
+  }
+  for (let i = 0; i < 81; i++) {
+    const c = cells[i], v = G.values[i], [r, cc, b] = RC[i];
+    const wrong = v !== 0 && v !== solAt(i);
+    c.classList.toggle('given', isGiven(i));
+    c.classList.toggle('wrong', wrong);
+    c.classList.toggle('sel', i === s);
+    c.classList.toggle('area', set.hlArea && s >= 0 && i !== s && (r === sr || cc === sc || b === sb));
+    c.classList.toggle('same', set.hlSame && selV !== 0 && i !== s && v === selV);
+    c.classList.toggle('conflict', conflict.has(i));
+    const n = G.notes[i];
+    const hit = set.hlSame && selV && !v && (n & (1 << (selV - 1))) ? selV : 0;
+    const key = v ? 'v' + v : 'n' + n + ':' + hit;
+    if (cellKey[i] !== key) {
+      cellKey[i] = key;
+      if (v) c.innerHTML = `<span class="d">${v}</span>`;
+      else if (n) { let h = '<div class="notes">'; for (let d = 1; d <= 9; d++) h += `<span class="${d === hit ? 'hit' : ''}">${n & (1 << (d - 1)) ? d : ''}</span>`; c.innerHTML = h + '</div>'; }
+      else c.innerHTML = '';
+    }
+    const label = `${r + 1}行${cc + 1}列 ` + (v ? v + (wrong ? ' 間違い' : '') : n ? 'メモあり' : '空欄');
+    if (c.getAttribute('aria-label') !== label) c.setAttribute('aria-label', label);
+  }
+  board.classList.toggle('paused', paused);
+  $('#pause-ov').hidden = !paused;
+}
+function renderTools() {
+  $('#t-notes').classList.toggle('on', G.notesMode);
+  $('#notes-badge').textContent = G.notesMode ? 'ON' : 'OFF';
+  const hb = $('#hint-badge');
+  hb.textContent = G.hints; hb.classList.toggle('zero', G.hints === 0);
+  $('#pad').classList.toggle('memo', G.notesMode);
+  const counts = new Array(10).fill(0);
+  for (let i = 0; i < 81; i++) { const v = G.values[i]; if (v && v === solAt(i)) counts[v]++; }
+  document.querySelectorAll('.key').forEach(k => {
+    const n = +k.dataset.n, left = 9 - counts[n];
+    k.classList.toggle('done', left === 0);
+    k.querySelector('.c').textContent = left;
+  });
+}
+function animate(i, cls, delay = 0) {
+  if (reduceMotion()) return;
+  const c = cells[i];
+  c.classList.remove(cls); void c.offsetWidth;
+  c.style.animationDelay = delay ? delay + 'ms' : '';
+  if (cls !== 'flash') { const d = c.querySelector('.d'); if (d) d.style.animationDelay = ''; }
+  c.classList.add(cls);
+}
+
+/* ---------- game actions ---------- */
+function canPlay() { return G && G.status === 'playing' && !paused && view === 'game' && !sheetOpen; }
+function select(i) { if (!G || paused) return; G.sel = i; renderBoard(); }
+
+function inputDigit(d) {
+  if (!canPlay()) return;
+  const i = G.sel;
+  if (i < 0) { toast('マスを選んでください'); return; }
+  if (isLocked(i)) { G.sel = i; renderBoard(); return; }
+  const bit = 1 << (d - 1);
+  if (G.notesMode) {
+    if (G.values[i]) return;
+    G.history.push({ changes:[{ i, v:G.values[i], n:G.notes[i] }], score:G.score });
+    G.notes[i] ^= bit;
+    renderBoard(); persistGame();
+    return;
+  }
+  if (G.values[i] === d) return;
+  const entry = { changes:[{ i, v:G.values[i], n:G.notes[i] }], score:G.score };
+  G.values[i] = d; G.notes[i] = 0;
+  if (d === solAt(i)) {
+    if (S().autoNotes) for (const p of PEERS[i]) if (G.notes[p] & bit) { entry.changes.push({ i:p, v:G.values[p], n:G.notes[p] }); G.notes[p] &= ~bit; }
+    G.history.push(entry);
+    G.score += DIFFS[G.diff].base;
+    afterCorrect(i);
+  } else {
+    G.history.push(entry);
+    G.mistakes++;
+    renderGame();
+    animate(i, 'shake');
+    if (navigator.vibrate) try { navigator.vibrate(40); } catch (e) {}
+    if (S().mistakeLimit && G.mistakes >= MAX_MISTAKES) { lose(); return; }
+    persistGame();
+  }
+}
+function afterCorrect(i) {
+  const [r, c, b] = RC[i];
+  const units = [UNITS.row[r], UNITS.col[c], UNITS.box[b]].filter(u => u.every(k => G.values[k] === solAt(k)));
+  G.score += units.length * DIFFS[G.diff].base * 4;
+  renderGame();
+  animate(i, 'pop');
+  const flashed = new Set();
+  units.forEach(u => u.forEach(k => {
+    if (flashed.has(k)) return; flashed.add(k);
+    const [kr, kc] = RC[k];
+    animate(k, 'flash', (Math.abs(kr - r) + Math.abs(kc - c)) * 45);
+  }));
+  // whole-number completion: flash every instance of the digit
+  const v = G.values[i];
+  if (G.values.filter((x, k) => x === v && x === solAt(k)).length === 9 && !units.length) {
+    G.values.forEach((x, k) => { if (x === v) animate(k, 'flash', 0); });
+  }
+  if (G.values.every((x, k) => x === solAt(k))) { win(); return; }
+  persistGame();
+}
+function erase() {
+  if (!canPlay()) return;
+  const i = G.sel;
+  if (i < 0 || isLocked(i)) return;
+  if (!G.values[i] && !G.notes[i]) return;
+  G.history.push({ changes:[{ i, v:G.values[i], n:G.notes[i] }], score:G.score });
+  if (G.values[i]) G.values[i] = 0; else G.notes[i] = 0;
+  renderGame(); persistGame();
+}
+function undo() {
+  if (!canPlay()) return;
+  while (G.history.length) {
+    const e = G.history.pop();
+    if (e.hint) continue;
+    for (const ch of e.changes.slice().reverse()) {
+      if (G.hinted.includes(ch.i)) continue;
+      G.values[ch.i] = ch.v; G.notes[ch.i] = ch.n;
+    }
+    G.score = e.score;
+    const tgt = e.changes[0].i;
+    if (!G.hinted.includes(tgt)) G.sel = tgt;
+    renderGame(); persistGame();
+    return;
+  }
+  toast('これ以上は戻せません');
+}
+function toggleNotes() { if (!G || paused) return; G.notesMode = !G.notesMode; renderTools(); persistGame(); }
+function hint() {
+  if (!canPlay()) return;
+  if (G.hints <= 0) { toast('ヒントを使い切りました'); return; }
+  let i = G.sel;
+  if (i < 0 || isLocked(i)) {
+    const open = []; for (let k = 0; k < 81; k++) if (!isLocked(k)) open.push(k);
+    if (!open.length) return;
+    // prefer the cell with the fewest candidates (most helpful, like the original's guided hint)
+    open.sort((a, b) => cand(a) - cand(b));
+    i = open[0];
+  }
+  const d = solAt(i), bit = 1 << (d - 1);
+  const entry = { hint:true, changes:[{ i, v:G.values[i], n:G.notes[i] }], score:G.score };
+  G.values[i] = d; G.notes[i] = 0; G.hinted.push(i); G.hints--; G.sel = i;
+  if (S().autoNotes) for (const p of PEERS[i]) if (G.notes[p] & bit) { entry.changes.push({ i:p, v:G.values[p], n:G.notes[p] }); G.notes[p] &= ~bit; }
+  G.history.push(entry);
+  afterCorrect(i);
+}
+function cand(i) { let m = 0; for (const p of PEERS[i]) { const v = G.values[p]; if (v && v === solAt(p)) m |= 1 << (v - 1); } return POP[~m & 511]; }
+function setPaused(p) {
+  if (!G || G.status !== 'playing') return;
+  paused = p;
+  renderInfo(); renderBoard(); syncTimer();
+  if (p) persistGame(true);
+}
+function moveSel(dr, dc) {
+  if (!G) return;
+  let i = G.sel < 0 ? 40 : G.sel;
+  let r = (i / 9 | 0) + dr, c = i % 9 + dc;
+  r = (r + 9) % 9; c = (c + 9) % 9;
+  select(r * 9 + c);
+}
+
+/* ---------- start / finish ---------- */
+function abandonCurrent() {
+  if (G && G.status === 'playing' && !G.daily && G.history.length) { profile.stats[G.diff].streak = 0; }
+}
+function hasProgress() { return G && G.status === 'playing' && (G.history.length > 0 || G.elapsed > 20); }
+function confirmAbandon(then) {
+  if (!hasProgress()) { then(); return; }
+  openSheet('confirm', `<div class="sh-title">新しいゲームを始めますか？</div>
+    <p class="sh-sub">プレイ中の${esc(G.daily ? 'デイリー ' + jpDate(G.daily) : DIFFS[G.diff].label)}（${fmt(G.elapsed)}）は失われます。</p>
+    <div class="sh-stack"><button class="btn primary" data-sh="yes">新しいゲームを始める</button><button class="btn" data-sh="no">キャンセル</button></div>`, {
+    onClick: (k) => { closeSheet(); if (k === 'yes') then(); }
+  });
+}
+function startGame(diff, daily) {
+  abandonCurrent();
+  showView('game');
+  board.classList.add('busy');
+  paused = false;
+  setTimeout(() => {
+    const rng = daily ? mulberry32(hashStr('nampure-daily-' + daily)) : mulberry32((Math.random() * 2 ** 32) >>> 0);
+    const { puzzle, solution } = generate(diff, rng);
+    G = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), diff, daily: daily || null, puzzle, solution,
+      values: puzzle.split('').map(Number), notes: new Array(81).fill(0), hinted: [], history: [], mistakes: 0, hints: HINTS,
+      score: 0, elapsed: 0, secondChance: false, status: 'playing', notesMode: false, sel: -1, startedAt: Date.now(), updatedAt: Date.now() };
+    G.sel = G.values.indexOf(0);
+    if (!daily) profile.stats[diff].started++;
+    cellKey.fill('');
+    board.classList.remove('busy');
+    renderGame(); syncTimer();
+    persistProfile(); persistGame(true);
+  }, 40);
+}
+function restartGame() {
+  if (!G) return;
+  G.values = G.puzzle.split('').map(Number); G.notes = new Array(81).fill(0); G.hinted = []; G.history = [];
+  G.mistakes = 0; G.hints = HINTS; G.score = 0; G.elapsed = 0; G.secondChance = false; G.status = 'playing'; G.notesMode = false;
+  G.sel = G.values.indexOf(0); paused = false;
+  showView('game'); persistGame(true);
+}
+function recordRecent(won) {
+  profile.recent.unshift({ d:G.diff, daily:G.daily, won, t:G.elapsed, s:G.score, at:Date.now() });
+  profile.recent = profile.recent.slice(0, 20);
+}
+function win() {
+  G.status = 'won';
+  syncTimer();
+  let record = false, prevBest = null;
+  if (G.daily) {
+    const prev = profile.daily[G.daily];
+    prevBest = prev ? prev.t : null;
+    record = !prev || G.elapsed < prev.t;
+    profile.daily[G.daily] = { t: prev ? Math.min(prev.t, G.elapsed) : G.elapsed, s: Math.max(prev ? prev.s || 0 : 0, G.score) };
+  } else {
+    const st = profile.stats[G.diff];
+    prevBest = st.bestTime;
+    record = st.bestTime == null || G.elapsed < st.bestTime;
+    st.won++; st.totalTime += G.elapsed;
+    if (record) st.bestTime = G.elapsed;
+    if (G.mistakes === 0) st.perfect++;
+    st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak);
+  }
+  recordRecent(true);
+  const done = G;
+  persistProfile(); persistGame(true);
+  if (!done.daily) pushScore();
+  setTimeout(() => {
+    confetti();
+    const hadPrev = prevBest != null;
+    openSheet('result', `<div class="result-hero"><div class="medal">${I('trophy')}</div>
+        <div class="sh-title">おめでとうございます！</div>
+        ${record && hadPrev ? '<span class="pill">自己ベスト更新</span>' : ''}</div>
+      <p class="sh-sub">${esc(done.daily ? 'デイリー ' + jpDate(done.daily) : DIFFS[done.diff].label)}をクリアしました${done.mistakes === 0 ? '。ノーミスです' : ''}。</p>
+      <div class="res-grid"><div><div class="k">タイム</div><div class="v">${fmt(done.elapsed)}</div></div>
+        <div><div class="k">スコア</div><div class="v">${done.score.toLocaleString()}</div></div>
+        <div><div class="k">ベスト</div><div class="v">${fmt(hadPrev ? Math.min(prevBest, done.elapsed) : done.elapsed)}</div></div></div>
+      <div class="sh-stack"><button class="btn primary" data-sh="new">新しいゲーム</button><button class="btn" data-sh="home">ホームへ</button></div>`, {
+      dismissable:false,
+      onClick: k => { closeSheet(); G = null; saveLocal(); if (k === 'new') openNewGameSheet(); else showView('home'); }
+    });
+  }, reduceMotion() ? 0 : 650);
+}
+function lose() {
+  G.status = 'lost';
+  syncTimer();
+  if (!G.daily) profile.stats[G.diff].streak = 0;
+  persistProfile();
+  const canSecond = !G.secondChance;
+  openSheet('lose', `<div class="result-hero"><div class="medal lose">${I('heart')}</div><div class="sh-title">ゲームオーバー</div></div>
+    <p class="sh-sub">${MAX_MISTAKES}回ミスしました。${canSecond ? 'セカンドチャンスで続きから再開できます。' : ''}</p>
+    <div class="sh-stack">${canSecond ? '<button class="btn primary" data-sh="second">セカンドチャンス（続ける）</button>' : ''}
+      <button class="btn ${canSecond ? '' : 'primary'}" data-sh="restart">最初からやり直す</button>
+      <button class="btn" data-sh="new">新しいゲーム</button></div>`, {
+    dismissable:false,
+    onClick: k => {
+      closeSheet();
+      if (k === 'second') { G.status = 'playing'; G.secondChance = true; G.mistakes = MAX_MISTAKES - 1; renderGame(); syncTimer(); persistGame(true); }
+      else if (k === 'restart') restartGame();
+      else { recordRecent(false); persistProfile(); G = null; persistGame(true); openNewGameSheet(); }
+    }
+  });
+}
+
+/* ---------- timer ---------- */
+let tick = 0;
+function syncTimer() {
+  const run = G && G.status === 'playing' && !paused && view === 'game' && !sheetOpen && document.visibilityState === 'visible';
+  if (run && !tick) tick = setInterval(() => { G.elapsed++; renderTimer(); if (G.elapsed % 10 === 0) saveLocal(); if (G.elapsed % 60 === 0) persistGame(); }, 1000);
+  else if (!run && tick) { clearInterval(tick); tick = 0; }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { if (G && G.status === 'playing' && view === 'game') { paused = true; renderGame(); } persistGame(true); }
+  syncTimer();
+});
+window.addEventListener('pagehide', () => saveLocal());
+
+/* ---------- sheets ---------- */
+let sheetOpen = false, sheetKind = '', sheetOpts = {}, sheetGen = 0;
+function openSheet(kind, html, opts = {}) {
+  sheetGen++;
+  sheetKind = kind; sheetOpts = { dismissable:true, ...opts };
+  $('#sheet-body').innerHTML = html;
+  const w = $('#sheet'); w.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => w.classList.add('open')));
+  sheetOpen = true; syncTimer();
+  if (opts.onMount) opts.onMount($('#sheet-body'));
+}
+function closeSheet() {
+  const gen = ++sheetGen, w = $('#sheet');
+  w.classList.remove('open');
+  const cb = sheetOpts.onClose; sheetOpts = {}; sheetKind = '';
+  sheetOpen = false;
+  setTimeout(() => { if (gen === sheetGen) w.hidden = true; }, 260);
+  if (cb) cb();
+  syncTimer();
+}
+$('#sheet-bd').addEventListener('click', () => { if (sheetOpts.dismissable) closeSheet(); });
+$('#sheet-body').addEventListener('click', e => {
+  const b = e.target.closest('[data-sh]');
+  if (b && sheetOpts.onClick) sheetOpts.onClick(b.dataset.sh, e);
+});
+
+function openNewGameSheet() {
+  const rows = ORDER.map(d => {
+    const st = profile.stats[d];
+    return `<button class="diff-row" data-sh="${d}"><span class="pips">${[1,2,3,4].map(k => `<i class="${k <= DIFFS[d].pips ? 'on' : ''}"></i>`).join('')}</span>
+      <span style="flex:1;min-width:0"><span class="nm" style="display:block">${DIFFS[d].label}</span><span class="bt">${esc(DIFFS[d].note)}</span></span>
+      <span class="bt">${st.bestTime != null ? 'ベスト ' + fmt(st.bestTime) : ''}</span></button>`;
+  }).join('');
+  const restart = G && G.status === 'playing' ? `<button class="btn ghost" data-sh="restart">このゲームを最初からやり直す</button>` : '';
+  openSheet('new', `<div class="sh-title">新しいゲーム</div><p class="sh-sub">難易度を選んでください</p><div class="sh-stack">${rows}${restart}</div>`, {
+    onClick: k => {
+      closeSheet();
+      if (k === 'restart') { restartGame(); return; }
+      confirmAbandon(() => startGame(k, null));
+    }
+  });
+}
+function openNameSheet(first) {
+  openSheet(first ? 'welcome' : 'name', `
+    <div class="sh-title">${first ? 'ようこそ' : '名前を変更'}</div>
+    <p class="sh-sub">${first ? '名前を登録すると、成績・プレイ中のゲーム・デイリーの記録がこの名前で保存されます。' + (HAS_CLAUDE ? 'ランキングにもこの名前で載ります。' : '') : (HAS_CLAUDE ? 'ランキングとホーム画面' : 'ホーム画面') + 'に表示される名前です。'}</p>
+    <form id="name-form" class="sh-stack" novalidate>
+      <div class="field"><label for="name-input">ニックネーム</label>
+        <input class="input" id="name-input" maxlength="12" autocomplete="nickname" placeholder="例：ナンプレ太郎" value="${esc(profile.nickname)}">
+        <span class="hint-text">12文字まで</span><span class="err-text" id="name-err"></span></div>
+      <button class="btn primary" type="submit">${first ? '登録してはじめる' : '保存'}</button>
+      <button class="btn ghost" type="button" data-sh="skip">${first ? 'あとで登録する' : 'キャンセル'}</button>
+    </form>`, {
+    dismissable: !first,
+    onMount: root => {
+      const inp = root.querySelector('#name-input');
+      if (!first) setTimeout(() => inp.focus(), 280);
+      root.querySelector('#name-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const v = inp.value.replace(/\s+/g, ' ').trim();
+        if (!v) { root.querySelector('#name-err').textContent = '名前を入力してください'; return; }
+        profile.nickname = v.slice(0, 12); profile.nameAsked = true;
+        persistProfile(); pushScore();
+        closeSheet(); rerender();
+        toast(`${profile.nickname}さんで登録しました`);
+      });
+    },
+    onClick: k => { if (k === 'skip') { profile.nameAsked = true; persistProfile(); closeSheet(); } }
+  });
+}
+function openSettings() {
+  const s = S();
+  const row = (key, label, sub) => `<li><div class="li-main"><div class="a">${label}</div>${sub ? `<div class="b">${sub}</div>` : ''}</div>
+    <label class="switch"><input type="checkbox" id="set-${key}" data-set="${key}" ${s[key] ? 'checked' : ''} aria-label="${label}"><span></span></label></li>`;
+  const where = cloud.profRef ? 'クラウドに保存（別の端末でも同じアカウントなら続きから遊べます）' : 'この端末のブラウザに保存';
+  openSheet('settings', `<div class="sh-title">設定</div>
+    <div class="sh-stack" style="margin-top:12px">
+      <section class="card" style="box-shadow:none;background:var(--bg)"><ul class="list set-list">
+        <li><span class="avatar" style="width:38px;height:38px;font-size:16px">${esc(displayName().slice(0, 1))}</span>
+          <div class="li-main"><div class="a">${esc(displayName())}</div><div class="b">${esc(where)}</div></div>
+          <button class="btn" style="min-height:38px;font-size:14px" data-sh="name">名前を変更</button></li></ul></section>
+      <section class="card" style="box-shadow:none;background:var(--bg)"><ul class="list set-list">
+        ${row('mistakeLimit', 'ミスの上限', `${MAX_MISTAKES}回ミスするとゲームオーバー`)}
+        ${row('autoNotes', 'メモを自動で消す', '正解を入れた行・列・ブロックのメモを消去')}
+        ${row('hlSame', '同じ数字をハイライト', '')}
+        ${row('hlArea', '行・列・ブロックをハイライト', '')}
+        ${row('hlConflict', '重複をハイライト', '')}
+        ${row('showTimer', 'タイマーを表示', '')}
+      </ul></section>
+      <p class="hint-text" style="text-align:center;line-height:1.7">キーボード：1–9 入力 / 矢印 移動 / Backspace 消去<br>N メモ切替 / Z 元に戻す / H ヒント / Space 一時停止</p>
+      <button class="btn" data-sh="close">閉じる</button>
+    </div>`, {
+    onMount: root => root.querySelectorAll('[data-set]').forEach(inp => inp.addEventListener('change', () => {
+      profile.settings[inp.dataset.set] = inp.checked;
+      if (G && inp.dataset.set === 'mistakeLimit' && inp.checked && G.mistakes >= MAX_MISTAKES) G.mistakes = MAX_MISTAKES - 1;
+      persistProfile();
+      if (G && view === 'game') renderGame();
+    })),
+    onClick: k => { if (k === 'name') { closeSheet(); openNameSheet(false); } else if (k === 'close') closeSheet(); }
+  });
+}
+
+/* ---------- toast & confetti ---------- */
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1800); }
+function confetti() {
+  if (reduceMotion()) return;
+  const cv = $('#confetti'), ctx = cv.getContext('2d'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.width = innerWidth * dpr, H = cv.height = innerHeight * dpr;
+  const cols = ['#2563EB', '#60A5FA', '#F59E0B', '#EF4444', '#10B981', '#A78BFA'];
+  const ps = Array.from({ length: 170 }, () => ({ x: W / 2 + (Math.random() - .5) * W * .3, y: H * .35, vx: (Math.random() - .5) * 16 * dpr, vy: (-Math.random() * 15 - 5) * dpr,
+    w: (6 + Math.random() * 6) * dpr, h: (3 + Math.random() * 4) * dpr, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[Math.random() * cols.length | 0] }));
+  const t0 = performance.now();
+  (function frame(t) {
+    const el = t - t0; ctx.clearRect(0, 0, W, H);
+    for (const p of ps) { p.vy += .45 * dpr; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - el / 2800); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore(); }
+    if (el < 2800) requestAnimationFrame(frame); else ctx.clearRect(0, 0, W, H);
+  })(t0);
+}
+
+/* ---------- events ---------- */
+document.querySelectorAll('[data-tab]').forEach(t => {
+  const map = { home:['home','ホーム'], daily:['cal','デイリー'], stats:['chart','統計'] };
+  t.innerHTML = I(map[t.dataset.tab][0]) + map[t.dataset.tab][1];
+  t.addEventListener('click', () => showView(t.dataset.tab));
+});
+$('#home-settings').innerHTML = I('gear'); $('#g-settings').innerHTML = I('gear'); $('#g-back').innerHTML = I('left');
+$('#cal-prev').innerHTML = I('left'); $('#cal-next').innerHTML = I('right');
+$('#t-undo .tw').insertAdjacentHTML('afterbegin', I('undo')); $('#t-erase .tw').insertAdjacentHTML('afterbegin', I('eraser'));
+$('#t-notes .tw').insertAdjacentHTML('afterbegin', I('pencil')); $('#t-hint .tw').insertAdjacentHTML('afterbegin', I('bulb'));
+
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  const act = a.dataset.act;
+  if (act === 'settings') openSettings();
+  else if (act === 'edit-name') openNameSheet(false);
+  else if (act === 'continue') { if (G) { paused = false; showView('game'); } }
+  else if (act === 'new') openNewGameSheet();
+  else if (act === 'back') { persistGame(true); showView('home'); }
+  else if (act === 'resume') setPaused(false);
+  else if (act === 'daily-today') playDaily(ymd(new Date()));
+  else if (act === 'daily-play') playDaily(calPick);
+  else if (act === 'reset-stats') {
+    openSheet('reset', `<div class="sh-title">${esc(DIFFS[statsDiff].label)}の統計をリセット</div><p class="sh-sub">この操作は取り消せません。</p>
+      <div class="sh-stack"><button class="btn primary" style="background:var(--err)" data-sh="yes">リセットする</button><button class="btn" data-sh="no">キャンセル</button></div>`, {
+      onClick: k => { closeSheet(); if (k === 'yes') { profile.stats[statsDiff] = emptyStat(); persistProfile(); pushScore(); renderStats(); toast('リセットしました'); } }
+    });
+  }
+});
+function playDaily(day) {
+  if (G && G.status === 'playing' && G.daily === day) { paused = false; showView('game'); return; }
+  confirmAbandon(() => startGame(DAILY_DIFF[parseYmd(day).getDay()], day));
+}
+board.addEventListener('click', e => { const c = e.target.closest('.cell'); if (c) select(+c.dataset.i); });
+$('#pad').addEventListener('click', e => { const k = e.target.closest('.key'); if (k) inputDigit(+k.dataset.n); });
+$('#t-undo').addEventListener('click', undo);
+$('#t-erase').addEventListener('click', erase);
+$('#t-notes').addEventListener('click', toggleNotes);
+$('#t-hint').addEventListener('click', hint);
+$('#g-pause').addEventListener('click', () => setPaused(!paused));
+$('#cal-prev').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderDaily(); });
+$('#cal-next').addEventListener('click', () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderDaily(); });
+$('#cal-grid').addEventListener('click', e => { const d = e.target.closest('[data-day]'); if (d && !d.disabled) { calPick = d.dataset.day; renderDaily(); } });
+$('#seg-stats').addEventListener('click', () => { statsMode = 'stats'; renderStats(); });
+$('#seg-rank').addEventListener('click', () => { statsMode = 'rank'; renderStats(); });
+$('#diff-chips').addEventListener('click', e => { const c = e.target.closest('[data-diff]'); if (c) { statsDiff = c.dataset.diff; renderStats(); } });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && sheetOpen && sheetOpts.dismissable) { closeSheet(); return; }
+  if (view !== 'game' || sheetOpen || !G) return;
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  if (e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (k === ' ') { e.preventDefault(); setPaused(!paused); return; }
+  if (paused) return;
+  if (/^[1-9]$/.test(k)) { e.preventDefault(); inputDigit(+k); }
+  else if (k === 'Backspace' || k === 'Delete' || k === '0') { e.preventDefault(); erase(); }
+  else if (k === 'ArrowUp') { e.preventDefault(); moveSel(-1, 0); }
+  else if (k === 'ArrowDown') { e.preventDefault(); moveSel(1, 0); }
+  else if (k === 'ArrowLeft') { e.preventDefault(); moveSel(0, -1); }
+  else if (k === 'ArrowRight') { e.preventDefault(); moveSel(0, 1); }
+  else if (k === 'n' || k === 'N') toggleNotes();
+  else if (k === 'z' || k === 'Z') { e.preventDefault(); undo(); }
+  else if (k === 'h' || k === 'H') hint();
+});
+
+/* ---------- boot ---------- */
+if (!HAS_CLAUDE) { $('.seg').hidden = true; statsMode = 'stats'; }
+loadLocal();
+if (G) G.sel = G.sel >= 0 ? G.sel : G.values.indexOf(0);
+setSync('connecting');
+showView('home');
+const cloudReady = connectCloud();
+Promise.race([cloudReady, sleep(2500)]).then(() => {
+  if (!profile.nickname && !profile.nameAsked && !sheetOpen) openNameSheet(true);
+});
+</script>
+
+</body>
+</html>
