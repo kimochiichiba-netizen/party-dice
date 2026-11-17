@@ -382,6 +382,22 @@ body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 @keyframes fall{to{transform:translateY(112vh) rotate(calc(var(--r) + 760deg))}}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+.goal{display:grid;gap:2px;justify-items:end;font:700 12.5px/1.4 var(--f-round);color:#e8efe9;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:12px;padding:5px 10px}
+.goal b{color:var(--gold);font-size:15px}
+.goal .g-row{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.goal .g-sub{font-size:11px;color:var(--muted);font-weight:500}
+.goal .g-ten{color:#7ff0b4!important}.goal .g-win{color:#ff8a7a!important;animation:pulse 1s infinite}
+.goal .pips{display:inline-flex;gap:3px}
+.goal .pips i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.14)}
+.goal .pips i.on{background:var(--gold);box-shadow:0 0 6px rgba(233,185,73,.6)}
+.goal.tenpai{border-color:#7ff0b4}.goal.tenpai .pips i.on{background:#7ff0b4;box-shadow:0 0 6px rgba(127,240,180,.7)}
+.dock-side{flex-direction:row!important;flex-wrap:wrap;justify-content:flex-end;align-items:center;max-width:470px;gap:6px 8px!important}
+.chipsbox{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 8px}
+.chipsbox .seg{gap:6px;flex-wrap:nowrap}.chipsbox .seg-l{min-width:0;font-size:11.5px;color:var(--muted)}
+.chipsbox .seg-b button{padding:2px 9px;font-size:11.5px}
+.dock-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.chip.ask{border-color:#7ff0b4;color:#7ff0b4;font-weight:700;animation:pulse 1.4s infinite}
+@media (max-width:640px){.dock-side{flex-wrap:wrap;gap:8px;align-items:center}.chipsbox{align-items:center}.dock-btns{justify-content:center}}
 /* ---------- coach ---------- */
 .coach{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .coach section{padding:12px 14px;border-bottom:1px solid var(--line)}
@@ -510,7 +526,7 @@ ul.seats li{display:flex;align-items:center;gap:8px;background:var(--panel-2);bo
       <div class="board-msg" id="boardMsg" hidden></div>
       <div class="pause-ov" id="pauseOverlay" hidden><b>一時停止中</b><button class="btn primary" id="btnResume">再開する</button></div>
     </div>
-    <div class="dock" id="dock"><div class="mascot" id="mascot"></div><div class="bubble" id="bubble" aria-live="polite"><div class="bubble-in" id="bubbleText"></div></div><div class="dock-side"><span class="tleft" id="timer"></span><span id="chipsBox"></span></div></div>
+    <div class="dock" id="dock"><div class="mascot" id="mascot"></div><div class="bubble" id="bubble" aria-live="polite"><div class="bubble-in" id="bubbleText"></div></div><div class="dock-side"><div id="goalBox"></div><span class="tleft" id="timer"></span><div id="chipsBox" class="chipsbox"></div></div></div>
     <div class="actions" id="actions"></div>
     <div class="preview" id="preview" aria-live="polite"></div>
     <div class="tray" id="tray"><div class="hand" id="hand"></div><div class="melds" id="melds0"></div></div>
@@ -873,7 +889,7 @@ function adviceSpeech(ui){
   const P=G.players[ME];const a=ui.adv||{};const L=[];
   if(ui.kind==='self'){
     if(ui.tsumoInfo){L.push('ツモれます！');L.push(`${yakuSay(ui.tsumoInfo.yaku)}で、${ui.tsumoInfo.score.total}点です。`);return L;}
-    if(S.assist!=='full'){L.push(a.fold?'相手が攻めています。守りも考えましょう。':'あなたの番です。');return L;}
+    if(!proOn()){L.push(a.fold?'相手が攻めています。守りも考えましょう。':'あなたの番です。');return L;}
     const t=a.rec;ui.optsCache=ui.optsCache||analyzeDiscards(P,ui.forbidden).opts;const o=ui.optsCache.find(x=>x.t===t);
     if(a.fold){const th=a.threats&&a.threats[0];L.push(`${tRead(t)}を切って、守りましょう。`);L.push(`${th?th.q.name+'のリーチに、':''}安全な牌です。`);return L;}
     if(o&&o.shanten===0){L.push(`${tRead(t)}を切れば、テンパイです！`);if(a.recRiichi)L.push(G.noCalls&&P.discards.length===0?'ダブルリーチのチャンスです！':'リーチがおすすめです。');return L;}
@@ -884,7 +900,7 @@ function adviceSpeech(ui){
     return L;
   }
   if(ui.opts.ron){L.push('ロンできます！');L.push(`${yakuSay(ui.opts.ron.yaku)}で、${ui.opts.ron.score.total}点です。`);return L;}
-  if(S.assist!=='full'){L.push('鳴くかどうか、考えましょう。');return L;}
+  if(!proOn()){L.push('鳴くかどうか、考えましょう。');return L;}
   const rec=a.rec;
   if(rec==='pass'||!rec){L.push(`${tRead(ui.t)}は、スルーでいきましょう。`);L.push('鳴くと、手が進まないか、役がなくなります。');}
   else{const jp={pon:'ポン',chi:'チー',minkan:'カン'}[rec.kind]||'鳴き';L.push(`${tRead(ui.t)}は、${jp}がおすすめ！`);
@@ -1470,6 +1486,27 @@ function countUp(){
   requestAnimationFrame(step);
 }
 
+function proOn(){return S.assist==='full'||!!(G&&G.ui&&G.ui.reveal);}
+function assistLevel(){return proOn()?'full':S.assist;}
+// ---- distance-to-win gauge ----
+let GOAL_KEY='',GOAL_H='';
+function goalHTML(){
+  if(!G||G.resPub||S.assist==='off')return'';const me=G.players[ME];if(!me||!me.hand.length)return'';
+  const m=me.melds.length,c=toCounts(me.hand),vis=visibleFor(me);
+  const key=me.hand.join(',')+'|'+vis.join('')+'|'+m;if(key===GOAL_KEY)return GOAL_H;
+  const sh=shantenAll(c,m);const unseen=Math.max(1,vis.reduce((a,v)=>a+4-v,0));let html;
+  if(sh<0)html=`<div class="g-row"><b class="g-win">和了れます！</b></div>`;
+  else{
+    let uk;
+    if(me.hand.length%3===2){const o=analyzeDiscards(me,(G.ui&&G.ui.forbidden)||[]).opts[0];uk=o?o.ukeire:0;}
+    else uk=ukeire(c.slice(),m,sh,vis).count;
+    const steps=sh+1,pct=Math.min(99,Math.round(100*uk/unseen));
+    const pips=Array.from({length:7},(_,k)=>`<i class="${k<7-steps?'on':''}"></i>`).join('');
+    html=`<div class="g-row">${sh===0?'<b class="g-ten">テンパイ！</b> あと<b>1</b>枚で和了':`和了まで あと<b>${steps}</b>枚`}<span class="pips" aria-hidden="true">${pips}</span></div>
+      <div class="g-sub">${sh>0?sh+'向聴・':''}次のツモで${sh===0?'和了':'前進'} 約${pct}%</div>`;
+  }
+  GOAL_KEY=key;GOAL_H=`<div class="goal ${sh<=0?'tenpai':''}" title="あと何枚で和了できるか（向聴数+1）">${html}</div>`;return GOAL_H;
+}
 // ================= MASCOT COACH (ミケ先生) =================
 function mascotSVG(ex='normal'){
   const ink='#2b2230';
@@ -1527,11 +1564,11 @@ function dockState(){
       if(ui.tsumoInfo)return{ex:'happy',html:head+(adviceLine(ui)||'<strong>ツモれます！</strong>')};
       const tenpai=a.ranked&&a.ranked[0]&&a.ranked[0].shanten===0;
       const ex=a.fold?'serious':tenpai?'happy':(a.threats&&a.threats.length)?'serious':'normal';
-      const txt=S.assist==='full'?adviceLine(ui):S.assist==='hint'?(a.fold?'相手が攻めています。守りも考えよう。':'手が進む牌を考えよう。'):'あなたの番です。';
+      const txt=proOn()?adviceLine(ui):assistLevel()==='hint'?(a.fold?'相手が攻めています。守りも考えよう。':'手が進む牌を考えよう。'):'あなたの番です。';
       return{ex,html:head+txt};
     }
-    if(ui.opts&&ui.opts.ron)return{ex:'surprised',html:`<strong>ロンできるよ！</strong> ${tn(ui.t)} ${S.assist==='full'?adviceLine(ui):''}`};
-    return{ex:'think',html:`${esc(G.players[ui.from].name)}の ${tn(ui.t)}、どうする？ ${S.assist==='full'?adviceLine(ui):''}`};
+    if(ui.opts&&ui.opts.ron)return{ex:'surprised',html:`<strong>ロンできるよ！</strong> ${tn(ui.t)} ${proOn()?adviceLine(ui):''}`};
+    return{ex:'think',html:`${esc(G.players[ui.from].name)}の ${tn(ui.t)}、どうする？ ${proOn()?adviceLine(ui):''}`};
   }
   if(me.riichi)return{ex:'happy',html:'リーチ中！ 当たり牌が来るのを待とう。'};
   const threat=G.players.find(q=>q.id!==ME&&q.riichi);
@@ -1539,7 +1576,10 @@ function dockState(){
   if(threat)return{ex:'serious',html:`${esc(threat.name)}がリーチ中！ 次の番は<b>安全な牌</b>を考えよう。`};
   return{ex:'normal',html:p&&p.id!==ME?`${esc(p.name)}が考え中…`:''};
 }
-function renderDock(){const st=dockState();setMascot(st.ex);setBubble(st.html);const cb=$('chipsBox');if(cb)put(cb,G?chipsHTML():'');}
+function renderDock(){const st=dockState();setMascot(st.ex);setBubble(st.html);
+  const cb=$('chipsBox');if(cb)put(cb,G?`${seg('assist','アシスト',[['full','フル'],['hint','ヒント'],['off','オフ']])}<span class="dock-btns">${G.ui&&S.assist!=='full'&&!G.ui.reveal?'<button type="button" class="chip ask" id="askPro">プロに聞く</button>':''}${chipsHTML()}</span>`:'');
+  const gl=$('goalBox');if(gl)put(gl,goalHTML());}
+document.addEventListener('click',e=>{if(!e.target.closest('#askPro'))return;const ui=G&&G.ui;if(!ui)return;ui.reveal=true;sfx('pop');render();voiceAdvice(ui);});
 
 // ================= ANIME EFFECTS =================
 const reducedMotion=()=>window.__autoplay||matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1635,8 +1675,8 @@ function renderTray(){
       const allowed=ui.riichiMode?ui.riichiTiles.includes(it.t):!(ui.forbidden.includes(it.t)&&me.hand.some(x=>!ui.forbidden.includes(x)));
       cls+=allowed?'can ':'no ';
       if(ui.sel===it.key)cls+='sel ';
-      if(S.assist==='full'&&ui.adv&&it.t===ui.adv.rec&&!recShown){cls+='rec ';recShown=true;}
-      const lv=ui.adv&&ui.adv.levels[it.t];if(S.assist!=='off'&&lv!==undefined&&lv>=0)extra=`<span class="dg l${lv}"></span>`;
+      if(proOn()&&ui.adv&&it.t===ui.adv.rec&&!recShown){cls+='rec ';recShown=true;}
+      const lv=ui.adv&&ui.adv.levels[it.t];if(assistLevel()!=='off'&&lv!==undefined&&lv>=0)extra=`<span class="dg l${lv}"></span>`;
     }
     hh+=tileHTML(it.t,cls,`data-key="${it.key}" tabindex="${ui?0:-1}" role="button" ${style}`).replace(/<\/span>$/,extra+'</span>');
   });
@@ -1646,17 +1686,17 @@ function renderTray(){
   const pl=$('plate0');put(pl,plateHTML(me));pl.classList.toggle('turn',G.turn===ME&&!G.resPub);
 }
 function adviceLine(ui){
-  if(!ui||!ui.adv||S.assist!=='full')return'';
+  if(!ui||!ui.adv||!proOn())return'';
   return ui.adv.html.split('<br>')[0];
 }
 function renderActions(){
   const el=$('actions');const ui=G.ui;
   if(!ui){put(el,'');renderTimer();return;}
-  const rec=S.assist==='full'&&ui.adv?ui.adv.rec:null;
+  const rec=proOn()&&ui.adv?ui.adv.rec:null;
   let b='';
   if(ui.kind==='self'){
     if(ui.tsumoInfo)b+=`<button class="pill win rec" data-act="tsumo">ツモ</button>`;
-    if(ui.riichiTiles.length)b+=`<button class="pill riichi ${ui.riichiMode?'on':''} ${S.assist==='full'&&ui.adv.recRiichi?'rec':''}" data-act="riichi">${ui.riichiMode?'取消':'リーチ'}</button>`;
+    if(ui.riichiTiles.length)b+=`<button class="pill riichi ${ui.riichiMode?'on':''} ${proOn()&&ui.adv.recRiichi?'rec':''}" data-act="riichi">${ui.riichiMode?'取消':'リーチ'}</button>`;
     for(const k of ui.kans)b+=`<button class="pill kan" data-act="kan" data-t="${k.t}" data-kt="${k.type}">${k.type==='ankan'?'暗槓':'加槓'}<small>${tName(k.t)}</small></button>`;
   }else{
     const o=ui.opts;const rk=rec==='ron'?'ron':rec==='pass'?'pass':rec&&rec.kind;
@@ -1670,17 +1710,17 @@ function renderActions(){
   renderTimer();
 }
 function renderCoach(){
-  const me=G.players[ME];const ui=G.ui;const coachOn=S.assist!=='off';
+  const me=G.players[ME];const ui=G.ui;const coachOn=assistLevel()!=='off';
   let adv='';
   if(!coachOn)adv='<span class="note">アシストはオフです（設定で変更できます）。</span>';
   else if(ui&&ui.kind==='self'){
     const a=ui.adv;
-    if(S.assist==='hint')adv=`<span class="note">ヒントモード：</span> 今は${shText(a.cur)}${a.threats.length?'。相手が攻めています。牌の下の色バーで危険度を確認しよう':''}。${a.fold?'守備を考える場面です。':'手を進める場面です。'}`;
+    if(assistLevel()==='hint')adv=`<span class="note">ヒントモード：</span> 今は${shText(a.cur)}${a.threats.length?'。相手が攻めています。牌の下の色バーで危険度を確認しよう':''}。${a.fold?'守備を考える場面です。':'手を進める場面です。'}`;
     else{adv=a.html;
       adv+=`<div class="cand">${a.ranked.map(o=>`<span>${tn(o.t)}</span><span>${shText(o.shanten)}・有効牌${o.ukeire}枚</span>${a.threats.length?`<span class="lv l${dangerLevel(o.danger)}">${LV_NAME[dangerLevel(o.danger)]}</span>`:'<span></span>'}`).join('')}</div>`;}
     if(ui.sel!=null){const it=selTile();if(it!=null){const o=analyzeDiscards(me,ui.forbidden).opts.find(x=>x.t===it);
       if(o)adv+=`<div class="tip" style="margin-top:8px">選択中 ${tn(it)}：切ると${shText(o.shanten)}・有効牌${o.ukeire}枚${a.threats.length?`・危険度「${LV_NAME[dangerLevel(o.danger)]}」${o.why?'（'+o.why+'）':''}`:''}。もう一度タップで捨てます。</div>`;}}
-  }else if(ui&&ui.kind==='resp'){adv=S.assist==='hint'?'<span class="note">鳴いた後に役が残るかを考えよう。</span>':ui.adv.html;}
+  }else if(ui&&ui.kind==='resp'){adv=assistLevel()==='hint'?'<span class="note">鳴いた後に役が残るかを考えよう。</span>':ui.adv.html;}
   else{const sh=shantenAll(toCounts(me.hand),me.melds.length);adv=`<span class="note">相手の番です。今のあなたの手は${shText(sh)}。相手の捨て牌と鳴きを見ておきましょう。</span>`;
     if(me.riichi)adv=`<span class="note">リーチ中。当たり牌が出たらロン、ツモったら和了れます。待ち：${getWaits(me.hand,me.melds.length).map(tn).join('')}</span>`;}
   put($('advice'),adv);
@@ -2526,7 +2566,7 @@ function selectTile(el){
   sfx('tap');showPreview(+el.dataset.t);renderCoach();
 }
 function previewText(t){
-  const ui=G&&G.ui;if(!ui||ui.kind!=='self'||S.assist==='off')return'';
+  const ui=G&&G.ui;if(!ui||ui.kind!=='self'||assistLevel()==='off')return'';
   const P=G.players[ME];ui.optsCache=ui.optsCache||analyzeDiscards(P,ui.forbidden).opts;
   const o=ui.optsCache.find(x=>x.t===t);if(!o)return'';
   let s=`${tn(t)} を切ると <b>${shText(o.shanten)}</b>`;
@@ -2542,7 +2582,7 @@ function updatePreview(){
   const el=$('preview');if(!el)return;let html='';
   if(G){const ui=G.ui;const me=G.players[ME];
     if(ui&&ui.kind==='self'&&HOVER!=null)html=previewText(HOVER);
-    else if(!ui&&me&&me.hand.length%3===1&&!G.resPub&&S.assist!=='off'&&shantenAll(toCounts(me.hand),me.melds.length)===0){
+    else if(!ui&&me&&me.hand.length%3===1&&!G.resPub&&assistLevel()!=='off'&&shantenAll(toCounts(me.hand),me.melds.length)===0){
       const vis=visibleFor(me);const ws=getWaits(me.hand,me.melds.length);const fur=ws.some(w=>me.discards.some(d=>d.t===w));
       html=`<span class="tenpai">テンパイ中</span> 待ち ${ws.map(w=>`<span class="wt">${tn(w)}<sub>残${Math.max(0,4-vis[w])}</sub></span>`).join('')}${fur?' <span class="lv l3">フリテン（ロン不可）</span>':''}`;}
   }
