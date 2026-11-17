@@ -758,7 +758,7 @@ const LV_NAME=['安全','ほぼ安全','注意','危険'];
 // LOGIC-END
 
 // ================= GAME / UI =================
-const S={timeLimit:90,length:4,assist:'full',speed:650,oneTap:false,voice:'off',sfx:true,guide:true,autoWin:false,noCall:false,coachTab:'advice',voiceEngine:'auto',voiceRate:1,claudeVoice:'airy',voiceName:''};
+const S={timeLimit:90,length:4,assist:'full',speed:650,oneTap:false,voice:'off',sfx:true,guide:true,autoWin:false,noCall:false,coachTab:'advice',voiceEngine:'auto',voiceRate:1,cpuLevel:4,claudeVoice:'airy',voiceName:''};
 try{const s=JSON.parse(localStorage.getItem('mj-settings')||'null');if(s)Object.assign(S,s);}catch(e){}
 const saveS=()=>{try{localStorage.setItem('mj-settings',JSON.stringify(S));}catch(e){}};
 const $=id=>document.getElementById(id);
@@ -1063,13 +1063,47 @@ function chiOptions(P,t){
   if(n<=6&&c[t+1]&&c[t+2])out.push([t+1,t+2]);
   return out;
 }
+const CPU_LV_NAME=['','入門','初級','中級','上級','達人'];
+function cpuLvOf(P){return G&&G.cpuLv?G.cpuLv:cpuLv();}
+function cpuLv(){const v=+S.cpuLevel;return v>=1&&v<=5?v:4;}
+// CPU strength: 1 入門 … 5 達人
+function cpuChoose(P,forbidden){
+  const lv=cpuLv();const pick=a=>a[Math.floor(Math.random()*a.length)];
+  if(lv<=2){
+    const A=analyzeDiscards(P,forbidden);const opts=A.opts;
+    if(lv===1&&Math.random()<0.55)return{opt:pick(opts),fold:false,A};
+    if(lv===2){const best=opts[0].shanten;const same=opts.filter(o=>o.shanten===best);
+      if(Math.random()<0.3)return{opt:pick(opts.slice(0,Math.min(5,opts.length))),fold:false,A};
+      return{opt:pick(same.slice(0,Math.min(3,same.length))),fold:false,A};}
+    return{opt:opts[0],fold:false,A};
+  }
+  if(lv===3){
+    const A=analyzeDiscards(P,forbidden);const top=A.opts[0];
+    if(A.threats.some(th=>th.q.riichi)&&top.shanten>=2){const safe=A.opts.slice().sort((a,b)=>a.danger-b.danger||a.shanten-b.shanten);return{opt:safe[0],fold:true,A};}
+    if(Math.random()<0.12&&A.opts[1])return{opt:A.opts[1],fold:false,A};
+    return{opt:top,fold:false,A};
+  }
+  const ch=chooseDiscard(P,forbidden,lv===5?(P.style==='attack'?'balanced':P.style):P.style);
+  if(lv===5&&ch.A.threats.length){
+    const A=ch.A;
+    if(!ch.fold){ // among near-equal efficient choices take the safest
+      const top=A.opts[0];const near=A.opts.filter(o=>o.shanten===top.shanten&&o.ukeire>=top.ukeire-2);
+      near.sort((a,b)=>a.danger-b.danger||b.ukeire-a.ukeire);
+      if(top.shanten>=1&&A.threats.some(th=>th.w>=0.45)&&near[0].danger>=4){const safe=A.opts.slice().sort((a,b)=>a.danger-b.danger||a.shanten-b.shanten);return{opt:safe[0],fold:true,A};}
+      return{opt:near[0],fold:false,A};}
+  }
+  return ch;
+}
 function cpuWantsCall(P,t,kind,use){
+  const lv=cpuLv();
+  if(lv===1)return(kind==='pon'&&yakuhaiFor(P)(t))?Math.random()<0.6:Math.random()<0.15;
+  if(lv===2&&!(kind==='pon'&&yakuhaiFor(P)(t)))return false;
   const ev=evalCall(P,t,kind,use);const st=P.style;
   if(P.melds.length===0&&ev.before<=1&&kind!=='minkan'&&!(kind==='pon'&&isDragon(t)))return false;
   if(kind==='pon'&&yakuhaiFor(P)(t))return ev.after<=ev.before;
   const real=ev.paths.filter(x=>x!=='役牌候補');
   if(!real.length||kind==='minkan')return false;
-  const lim=st==='naki'?4:st==='defense'?1:2;
+  const lim=(st==='naki'?4:st==='defense'?1:2)+(lv===5?1:0)-(lv===3?1:0);
   return ev.after<ev.before&&ev.before<=lim;
 }
 
@@ -1192,9 +1226,10 @@ async function collectResponses(tok,from,t){
     const fur=isFuriten(Q,waits);let info=null;
     if(!fur){info=evaluateHand(winCtx(Q,t,false,false));if(!info.valid)info=null;}
     if(info){
-      if(asCpu(Q))return{type:'ron',by:q};
+      if(asCpu(Q)){const lv=cpuLv();if(!(lv===1&&Math.random()<0.25)&&!(lv===2&&Math.random()<0.08))return{type:'ron',by:q};}
+      else{
       asked[q]=true;choice[q]=await askResp(Q,{ron:info,...callOpts(Q)},t,from,tok);check(tok);
-      if(choice[q].type==='ron')return{type:'ron',by:q};
+      if(choice[q].type==='ron')return{type:'ron',by:q};}
     }else if(Q.ctl==='local'&&!NET){log(fur?`${tName(t)} は当たり牌ですが、フリテンなのでロンできません（自分の捨て牌に待ち牌があるか、見逃し直後）`:`${tName(t)} は当たり牌ですが、役がないのでロンできません`,true);}
     if(Q.riichi)Q.riichiFuriten=true;else Q.furitenTemp=true;
   }
@@ -1217,10 +1252,10 @@ async function cpuSelf(P,drawn,rinshan,forbidden,tok){
     const c=toCounts(P.hand);const before=shantenAll(c,P.melds.length);c[k.t]-=(k.type==='ankan'?4:1);
     const after=shantenNormal(c,P.melds.length+(k.type==='ankan'?1:0));
     if(after<=before&&!(threatsFor(P).length&&k.type==='kakan'))return k;}
-  const ch=chooseDiscard(P,forbidden,P.style);
+  const ch=cpuChoose(P,forbidden);
   if(ch.fold&&!P.folding){P.folding=true;log(`${P.name}は安全牌を選んでいます（オリ気配）`);}
   const ro=riichiOptions(P);
-  if(ro.length&&!ch.fold){
+  if(ro.length&&!ch.fold&&!(cpuLv()===1&&Math.random()<0.5)){
     let best=null;const vis=visibleFor(P);
     for(const t of ro){const h=P.hand.slice();removeOne(h,t);const ws=getWaits(h,P.melds.length);
       const n=ws.reduce((a,w)=>a+Math.max(0,4-vis[w]),0);if(!best||n>best.n)best={t,n};}
@@ -1660,7 +1695,7 @@ function meldsHTML(p){return p.melds.map(m=>{
   return`<span class="meld">${m.tiles.map(t=>{const sd=!sideDone&&m.called!==undefined&&t===m.called;if(sd)sideDone=true;return tileHTML(t,sd?'side':'');}).join('')}</span>`;}).join('');}
 function plateHTML(P){
   const now=performance.now();const dl=FX.deltas[P.id];
-  const tag=P.ctl==='cpu'?(P.styleName||'CPU'):P.id===ME?'あなた':(P.offline?'切断中':'プレイヤー');
+  const tag=P.ctl==='cpu'?`${P.styleName||'CPU'}・${CPU_LV_NAME[cpuLvOf(P)]}`:P.id===ME?'あなた':(P.offline?'切断中':'プレイヤー');
   const rank=1+G.players.filter(q=>q.score>P.score).length;
   return`<div class="pl-top"><b class="w ${P.id===G.dealer?'dealer':''}">${HONOR[P.seatWind-27]}</b><span class="nm">${esc(P.name)}</span><span class="rk r${rank}">${rank}位</span></div>
     <div class="pl-bot"><span class="pt">${P.score.toLocaleString()}</span>${P.riichi?'<span class="rb">リーチ</span>':`<span class="tg">${tag}</span>`}</div>
@@ -1911,6 +1946,7 @@ function showStart(){
       ${seg('timeLimit','持ち時間',[[60,'60秒'],[90,'90秒'],[120,'120秒'],[0,'無制限']])}
       ${seg('length','対局の長さ',[[4,'東風戦'],[8,'半荘戦']])}
       ${seg('assist','アシスト',[['full','フル'],['hint','ヒント'],['off','オフ']])}
+      ${seg('cpuLevel','CPUの強さ',[[1,'入門'],[2,'初級'],[3,'中級'],[4,'上級'],[5,'達人']])}
     </div>
     <p class="home-foot"><button class="linkbtn" id="homeSettings">音・CPUの速さ・操作の設定</button><button class="linkbtn" id="homeGuide">操作ガイド</button></p>
   </div>`);
@@ -2177,7 +2213,7 @@ function showLobby(){
   openModal(`<h2>ロビー</h2>
   <p>合言葉：<b>${esc(NET.code)}</b>　<span class="note">同じ合言葉で「部屋に入る」を押すと、この部屋に参加できます。</span></p>
   <ul class="seats" id="lobbySeats">${lobbySeatsHTML(lobbySeatsData())}</ul>
-  ${host?`<div class="opts">${selHTML('lbTime','1手の持ち時間（全員）',TIME_OPTS,S.timeLimit)}${selHTML('lbLen','対局の長さ',LEN_OPTS,S.length)}</div>`:''}
+  ${host?`<div class="opts">${selHTML('lbTime','1手の持ち時間（全員）',TIME_OPTS,S.timeLimit)}${selHTML('lbLen','対局の長さ',LEN_OPTS,S.length)}</div><div class="quick">${seg('cpuLevel','CPUの強さ',[[1,'入門'],[2,'初級'],[3,'中級'],[4,'上級'],[5,'達人']])}</div>`:''}
   <p class="msgline" id="lobbyMsg">${host?(started?'対局中です。':'メンバーがそろったら「対局開始」を押してください。'):(NET.hostSeen?(started?'対局中です。':'ホストの開始を待っています…'):'ホストを探しています…')}</p>
   <p style="display:flex;gap:8px;flex-wrap:wrap">${host&&!started?'<button class="btn primary" id="lbStart">対局開始</button>':''}${started?'<button class="btn primary" id="lbBack">対局に戻る</button>':''}<button class="btn" id="lbLeave">退出する</button></p>
   <p class="note">${KEYS.ok?'手牌は暗号化して送られます。':'このブラウザでは暗号化が使えないため、手牌は暗号化されずに送られます。'}</p>`);
@@ -2252,7 +2288,7 @@ function validResp(st,a){
 }
 function pubState(){
   const ord=G.allDiscards.map(d=>d.by).join('');
-  return{r:G.round,h:G.honba,k:G.sticks,d:G.dealer,rw:G.roundWind,l:G.live.length,di:hs(G.doraInd.slice(0,G.doraCount)),dc:G.doraCount,kc:G.kanCount,nc:G.noCalls?1:0,tu:G.turn,o:ord,tl:S.timeLimit,
+  return{r:G.round,h:G.honba,k:G.sticks,d:G.dealer,rw:G.roundWind,l:G.live.length,di:hs(G.doraInd.slice(0,G.doraCount)),dc:G.doraCount,kc:G.kanCount,nc:G.noCalls?1:0,tu:G.turn,o:ord,tl:S.timeLimit,cl:cpuLv(),
     p:G.players.map(P=>({n:P.name,s:P.score,c:P.ctl==='cpu'?(P.styleName||'CPU'):'',ri:P.riichi?1:0,dr:P.doubleRiichi?1:0,of:P.offline?1:0,hc:P.hand.length,sw:P.seatWind,
       ds:hs(P.discards.map(d=>d.t)),df:P.discards.map(d=>(d.riichi?1:0)+(d.called?2:0)).join(''),m:P.melds.map(m=>({y:m.type,t:hs(m.tiles)})),fo:P.folding?1:0})),
     lg:G.log.slice(0,4).map(l=>({i:l.id,m:String(l.msg).slice(0,90),x:l.imp?1:0})),res:G.resPub||null,fin:G.finPub||null};
@@ -2369,7 +2405,7 @@ function buildViewG(g,mine){
       discards:ds.map((t,k)=>({t,riichi:((+df[k]||0)&1)>0,called:((+df[k]||0)&2)>0})),
       melds:(q.m||[]).slice(0,4).map(m=>({type:String(m.y),tiles:unhs(m.t)})),riichiSeq:-1,ippatsu:false,furitenTemp:false,riichiFuriten:false};});
   G={players,round:+g.r||0,honba:+g.h||0,sticks:+g.k||0,dealer:(+g.d||0)&3,roundWind:+g.rw||27,live:{length:+g.l||0},doraInd:unhs(g.di),doraCount:+g.dc||1,kanCount:+g.kc||0,
-    noCalls:!!g.nc,turn:(+g.tu||0)&3,drawn:mine.dr>=0?+mine.dr:null,allDiscards:[],seq:0,ui:old?old.ui:null,resPub:null,finPub:null,log:[]};
+    noCalls:!!g.nc,cpuLv:(+g.cl>=1&&+g.cl<=5)?+g.cl:0,turn:(+g.tu||0)&3,drawn:mine.dr>=0?+mine.dr:null,allDiscards:[],seq:0,ui:old?old.ui:null,resPub:null,finPub:null,log:[]};
   const idx=[0,0,0,0];let seq=0;
   for(const ch of String(g.o||'')){const s=(+ch)&3;const d=G.players[s]&&G.players[s].discards[idx[s]++];if(!d)break;seq++;G.allDiscards.push({by:s,t:d.t,seq});if(d.riichi)G.players[s].riichiSeq=seq;}
   G.seq=seq;
@@ -2554,6 +2590,7 @@ function showSettings(){
     ${seg('timeLimit','1手の持ち時間',[[60,'60秒'],[90,'90秒'],[120,'120秒'],[0,'無制限']])}
     ${seg('length','対局の長さ',[[4,'東風戦'],[8,'半荘戦']])}
     ${seg('assist','アシスト',[['full','フル'],['hint','ヒント'],['off','オフ']])}
+    ${seg('cpuLevel','CPUの強さ',[[1,'入門'],[2,'初級'],[3,'中級'],[4,'上級'],[5,'達人']])}
     ${seg('voice','音声解説',[['off','オフ'],['coach','解説'],['all','解説＋実況']])}
     ${seg('voiceEngine','声の種類',[['auto','おすすめ'],['device','端末の声'],['claude','Claudeの声']])}
     <div class="seg"><span class="seg-l">端末の声</span><select id="voicePick" class="vsel" aria-label="端末の声"></select></div>
