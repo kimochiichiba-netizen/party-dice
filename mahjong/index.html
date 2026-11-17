@@ -791,12 +791,19 @@ function pinColor(n,i){
   if(n===6)return i<2?C_GREEN:C_RED;if(n===7)return i<3?C_GREEN:C_RED;if(n===8)return C_BLUE;
   return i<3?C_BLUE:i<6?C_RED:C_GREEN;
 }
+function pinDot(x,y,r,c){ // coin-style circle: solid disc, white ring, white center with a colored dot
+  const f=v=>v.toFixed(2);
+  return`<circle cx="${x}" cy="${y}" r="${f(r)}" fill="${c}"/>`+
+    `<circle cx="${x}" cy="${y}" r="${f(r*0.68)}" fill="none" stroke="#fffef8" stroke-width="${f(r*0.16)}"/>`+
+    `<circle cx="${x}" cy="${y}" r="${f(r*0.34)}" fill="#fffef8"/><circle cx="${x}" cy="${y}" r="${f(r*0.17)}" fill="${c}"/>`;
+}
 function pinSVG(n){
+  if(n===1){ // ornate single circle
+    const petals=Array.from({length:12},(_,k)=>{const a=k*Math.PI/6,px=15+Math.cos(a)*8.1,py=20+Math.sin(a)*8.1;return`<circle cx="${px.toFixed(2)}" cy="${py.toFixed(2)}" r="1.4" fill="#fffef8"/>`;}).join('');
+    return`<svg viewBox="0 0 30 40" aria-hidden="true"><circle cx="15" cy="20" r="13.6" fill="${C_BLUE}"/><circle cx="15" cy="20" r="10.8" fill="${C_GREEN}"/>${petals}
+      <circle cx="15" cy="20" r="5.8" fill="${C_RED}"/><circle cx="15" cy="20" r="3.4" fill="none" stroke="#fffef8" stroke-width="1"/><circle cx="15" cy="20" r="1.5" fill="#fffef8"/></svg>`;}
   const r=PIN_R[n];
-  const dots=PIN_POS[n].map(([x,y],i)=>{const c=pinColor(n,i);
-    return n===1?`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="${C_BLUE}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="${r*0.68}" fill="none" stroke="${C_GREEN}" stroke-width="1.6" stroke-dasharray="2 1.6"/><circle cx="${x}" cy="${y}" r="${r*0.38}" fill="${c}"/>`
-      :`<circle cx="${x}" cy="${y}" r="${r}" fill="#fffef8" stroke="${c}" stroke-width="${(r*0.26).toFixed(2)}"/>${n<=5?`<circle cx="${x}" cy="${y}" r="${(r*0.62).toFixed(2)}" fill="none" stroke="${c}" stroke-width="${(r*0.1).toFixed(2)}" stroke-dasharray="${(r*0.3).toFixed(2)} ${(r*0.2).toFixed(2)}"/>`:''}<circle cx="${x}" cy="${y}" r="${(r*0.36).toFixed(2)}" fill="${c}"/><circle cx="${(x-r*0.12).toFixed(2)}" cy="${(y-r*0.12).toFixed(2)}" r="${(r*0.11).toFixed(2)}" fill="#fff" opacity=".8"/>`;}).join('');
-  return`<svg viewBox="0 0 30 40" aria-hidden="true">${dots}</svg>`;
+  return`<svg viewBox="0 0 30 40" aria-hidden="true">${PIN_POS[n].map(([x,y],i)=>pinDot(x,y,r,pinColor(n,i))).join('')}</svg>`;
 }
 const SOU_POS={2:[[15,10.5,0],[15,29.5,0]],3:[[15,10.5,0],[8.5,29.5,0],[21.5,29.5,0]],4:[[9,10.5,0],[21,10.5,0],[9,29.5,0],[21,29.5,0]],
   5:[[7.5,10.5,0],[22.5,10.5,0],[15,20,1],[7.5,29.5,0],[22.5,29.5,0]],6:[[6.5,10.5,0],[15,10.5,0],[23.5,10.5,0],[6.5,29.5,0],[15,29.5,0],[23.5,29.5,0]],
