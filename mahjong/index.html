@@ -391,7 +391,8 @@ body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .goal .pips i{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.14)}
 .goal .pips i.on{background:var(--gold);box-shadow:0 0 6px rgba(233,185,73,.6)}
 .goal.tenpai{border-color:#7ff0b4}.goal.tenpai .pips i.on{background:#7ff0b4;box-shadow:0 0 6px rgba(127,240,180,.7)}
-.dock-side{flex-direction:row!important;flex-wrap:wrap;justify-content:flex-end;align-items:center;max-width:470px;gap:6px 8px!important}
+.dock-side{flex-direction:row!important;flex-wrap:wrap;justify-content:flex-end;align-items:center;max-width:300px;gap:6px 8px!important}
+@media (min-width:641px){.goal{padding:4px 9px}.goal .g-sub{font-size:10.5px}}
 .chipsbox{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 8px}
 .chipsbox .seg{gap:6px;flex-wrap:nowrap}.chipsbox .seg-l{min-width:0;font-size:11.5px;color:var(--muted)}
 .chipsbox .seg-b button{padding:2px 9px;font-size:11.5px}
@@ -414,6 +415,13 @@ body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .cand-list{display:grid;gap:6px;margin-top:8px}
 .cand-list .ci{display:flex;align-items:center;gap:8px;background:var(--panel-2);border-radius:10px;padding:6px 10px;font-size:12.5px}
 .cand-list .ci b{color:var(--gold);min-width:3.2em}
+.yakuline{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px;padding:4px 0 0;border:0;border-top:1.5px dashed rgba(43,34,48,.25);background:none;width:100%;text-align:left;cursor:pointer;font:inherit}
+.yakuline .yl{font:800 11px var(--f-round);color:#fff;background:#e2404a;border-radius:6px;padding:1px 7px}
+.yk{display:inline-flex;align-items:baseline;gap:3px;font:800 12px var(--f-round);color:#1f5135;background:#e3f5ea;border:1.5px solid #6cc495;border-radius:9px;padding:0 7px}
+.yk small{font-size:10px;font-weight:700;opacity:.8}
+.yk.gold{color:#6b4300;background:#fff1c9;border-color:#e9b949}
+.yk.good{color:#1f5135}
+.yakuline:hover .yk{filter:brightness(1.05)}
 /* ---------- coach ---------- */
 .coach{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .coach section{padding:12px 14px;border-bottom:1px solid var(--line)}
@@ -1694,7 +1702,17 @@ function dockState(){
   if(threat)return{ex:'serious',html:`${esc(threat.name)}がリーチ中！ 次の番は<b>安全な牌</b>を考えよう。`};
   return{ex:'normal',html:p&&p.id!==ME?`${esc(p.name)}が考え中…`:''};
 }
-function renderDock(){const st=dockState();setMascot(st.ex);setBubble(st.html);
+function yakuLine(){
+  if(!G||G.resPub||S.assist==='off')return'';const me=G.players[ME];if(!me||!me.hand.length)return'';
+  let ts=yakuTargets(me);const rest=ts.filter(t=>!/^立直/.test(t.name));if(rest.length)ts=rest.concat(ts.filter(t=>/^立直/.test(t.name))).slice(0,3);else ts=ts.slice(0,1);
+  if(!ts.length)return'';
+  const chip=t=>{const m=t.name.match(/（([^）]*)）/);let nm=t.name.replace(/（.*$/,'').replace('断么九','タンヤオ').replace('・ダブル立直のチャンス','');
+    const han=m?(m[1].split('・').pop().split('／')[0]):'';
+    return`<span class="yk ${t.lv||''}" title="${esc(t.note.replace(/<[^>]+>/g,''))}">${esc(nm)}${han&&!/チャンス/.test(t.name)?`<small>${esc(han)}</small>`:''}</span>`;};
+  return`<button type="button" class="yakuline" id="yakuLine" aria-label="狙える役を見る"><span class="yl">狙える役</span>${ts.map(chip).join('')}</button>`;
+}
+document.addEventListener('click',e=>{if(!e.target.closest('#yakuLine'))return;sfx('tap');setCoachTab('targets');const c=$('coach');if(c&&innerWidth<=980)c.scrollIntoView({behavior:'smooth',block:'start'});});
+function renderDock(){const st=dockState();setMascot(st.ex);setBubble(st.html+yakuLine());
   const cb=$('chipsBox');if(cb)put(cb,G?`${seg('assist','アシスト',[['full','フル'],['hint','ヒント'],['off','オフ']])}<span class="dock-btns">${G.ui&&S.assist!=='full'&&!G.ui.reveal?'<button type="button" class="chip ask" id="askPro">プロに聞く</button>':''}${chipsHTML()}</span>`:'');
   const gl=$('goalBox');if(gl)put(gl,goalHTML());}
 document.addEventListener('click',e=>{if(!e.target.closest('#askPro'))return;const ui=G&&G.ui;if(!ui)return;ui.reveal=true;sfx('pop');render();voiceAdvice(ui);});
