@@ -49,7 +49,7 @@ body{background:radial-gradient(ellipse at 50% 0%,#123a31 0%,#071a15 60%,#04110d
 
 /* ---------- stage: square table seen from above ---------- */
 .stage{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
-.board{position:relative;width:min(100%,max(320px,calc(100dvh - 330px)));aspect-ratio:1;container-type:size;border-radius:2.6cqw;overflow:hidden;
+.board{position:relative;width:min(100%,max(320px,calc(100dvh - 360px)));aspect-ratio:1;container-type:size;border-radius:2.6cqw;overflow:hidden;
   background:
     radial-gradient(circle at 50% 50%,rgba(255,255,255,.07) 0 22%,transparent 60%),
     repeating-linear-gradient(45deg,rgba(255,255,255,.018) 0 2px,transparent 2px 5px),
@@ -142,7 +142,7 @@ body.guide .tile.p svg,body.guide .tile.s svg{left:14%;top:9%;width:78%;height:8
 .hand .tile.sel{transform:translateY(-16px)!important;box-shadow:0 0 0 2px var(--gold),0 calc(var(--w)*.2) 0 var(--back),0 10px 22px rgba(233,185,73,.45)}
 .hand .tile.no{filter:grayscale(.75) brightness(.6)}
 .hand.riichi-mode .tile.can{box-shadow:0 0 0 2px #ffb347,0 calc(var(--w)*.2) 0 var(--back),0 0 14px rgba(255,179,71,.6)}
-.hand .tile.rec::after{content:"推奨";position:absolute;top:-21px;left:50%;transform:translateX(-50%);font:700 10px var(--f-body);color:#2a1d00;background:var(--gold);padding:1px 5px;border-radius:4px;white-space:nowrap;animation:bob .9s ease-in-out infinite alternate}
+.hand .tile.rec::after{content:attr(data-tag);position:absolute;top:-21px;left:50%;transform:translateX(-50%);font:700 10px var(--f-body);color:#2a1d00;background:var(--gold);padding:1px 5px;border-radius:4px;white-space:nowrap;animation:bob .9s ease-in-out infinite alternate}
 .hand .tile.haku.rec::after{inset:auto;border:0}
 .hand .tile .dg{position:absolute;bottom:calc(var(--w)*-.42);left:15%;right:15%;height:4px;border-radius:2px}
 .dg.l0{background:var(--safe)} .dg.l1{background:#9bd17a} .dg.l2{background:var(--warn)} .dg.l3{background:var(--danger)}
@@ -398,6 +398,22 @@ body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .dock-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .chip.ask{border-color:#7ff0b4;color:#7ff0b4;font-weight:700;animation:pulse 1.4s infinite}
 @media (max-width:640px){.dock-side{flex-wrap:wrap;gap:8px;align-items:center}.chipsbox{align-items:center}.dock-btns{justify-content:center}}
+.hand .tile.rec2::after{background:#cfd8e3;color:#1c2633;animation:none}
+.hand .tile.rec3::after{background:#e3a66f;color:#3a1d05;animation:none}
+.hand .tile.rec2{box-shadow:0 0 0 2px #cfd8e3,0 calc(var(--w)*.2) 0 var(--back)}
+.hand .tile.rec3{box-shadow:0 0 0 2px #e3a66f,0 calc(var(--w)*.2) 0 var(--back)}
+.hand .tile.rec:not(.rec2):not(.rec3){box-shadow:0 0 0 2px var(--gold),0 calc(var(--w)*.2) 0 var(--back),0 0 14px rgba(233,185,73,.5)}
+.cands{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+.cd{display:inline-flex;align-items:center;gap:3px;border-radius:9px;padding:0 6px 0 3px;font-size:11.5px;line-height:1.3;border:1.5px solid;white-space:nowrap}
+.cd .tile{--w:15px!important;margin-bottom:2px}
+@media (max-width:640px){.hand .tile.rec::after{content:attr(data-num);padding:1px 4px}}
+.cd b{font-size:11.5px} .cd small{font-size:10.5px;font-weight:600;opacity:.85}
+.cd.c0{background:#fff3cf;border-color:#e9b949;color:#5a3a00}
+.cd.c1{background:#eef2f7;border-color:#9fb0c4;color:#1c2633}
+.cd.c2{background:#fbe9da;border-color:#d99a62;color:#3a1d05}
+.cand-list{display:grid;gap:6px;margin-top:8px}
+.cand-list .ci{display:flex;align-items:center;gap:8px;background:var(--panel-2);border-radius:10px;padding:6px 10px;font-size:12.5px}
+.cand-list .ci b{color:var(--gold);min-width:3.2em}
 /* ---------- coach ---------- */
 .coach{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .coach section{padding:12px 14px;border-bottom:1px solid var(--line)}
@@ -758,7 +774,7 @@ const LV_NAME=['安全','ほぼ安全','注意','危険'];
 // LOGIC-END
 
 // ================= GAME / UI =================
-const S={timeLimit:90,length:4,assist:'full',speed:650,oneTap:false,voice:'off',sfx:true,guide:true,autoWin:false,noCall:false,coachTab:'advice',voiceEngine:'auto',voiceRate:1,cpuLevel:4,claudeVoice:'airy',voiceName:''};
+const S={timeLimit:90,length:4,assist:'full',speed:650,oneTap:false,voice:'off',sfx:true,guide:true,autoWin:false,noCall:false,coachTab:'advice',voiceEngine:'auto',voiceRate:1,cpuLevel:4,candCount:3,claudeVoice:'airy',voiceName:''};
 try{const s=JSON.parse(localStorage.getItem('mj-settings')||'null');if(s)Object.assign(S,s);}catch(e){}
 const saveS=()=>{try{localStorage.setItem('mj-settings',JSON.stringify(S));}catch(e){}};
 const $=id=>document.getElementById(id);
@@ -1362,7 +1378,48 @@ function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
   }
   const ranked=(ch.fold?opts.slice().sort((a,b)=>a.danger-b.danger||a.shanten-b.shanten):opts).slice(0,4);
   const levels={};for(const op of opts)levels[op.t]=threats.length?dangerLevel(op.danger):-1;
-  return{rec,recRiichi,html:lines.join('<br>'),ranked,levels,threats,cur,fold:ch.fold};
+  const cands=buildCandidates(P,opts,threats,ch.fold,rec,recRiichi,c);
+  return{rec,recRiichi,html:lines.join('<br>'),ranked,levels,threats,cur,fold:ch.fold,cands};
+}
+// up to three candidates, each with a different idea (speed / runner-up / value or safety)
+function buildCandidates(P,opts,threats,fold,rec,recRiichi,c){
+  const out=[];const by=t=>opts.find(o=>o.t===t);
+  const add=(t,tag,why,sh)=>{if(t==null||out.some(o=>o.t===t)||!by(t))return;out.push({t,tag,why,sh:sh||`有効${by(t).ukeire}枚`});};
+  const top=opts[0];const stat=o=>`${shText(o.shanten)}・有効牌${o.ukeire}枚`;
+  const safeSorted=opts.slice().sort((a,b)=>a.danger-b.danger||a.shanten-b.shanten||b.ukeire-a.ukeire);
+  if(fold){
+    const r=by(rec);add(rec,'守り',`${r.why||'安全度が高い'}`,'オリ');
+    const s2=safeSorted.find(o=>o.t!==rec);if(s2)add(s2.t,'守り',`${s2.why||'比較的安全'}`,'安全');
+    add(top.t,'攻め',`${stat(top)}・危険度「${LV_NAME[dangerLevel(top.danger)]}」`,'押し');
+    return out.slice(0,3);
+  }
+  const r=by(rec);add(rec,recRiichi?'リーチ':'速さ',r.shanten===0?'テンパイ・待ち最多':`最速・${stat(r)}`);
+  // value / yaku idea
+  const all=P.hand.concat(...P.melds.map(m=>m.tiles));const hon=all.filter(isHonor).length;
+  const alt=[];
+  for(let su=0;su<3;su++){const inS=all.filter(x=>x<27&&suitOf(x)===su).length;
+    if(inS+hon>=9&&inS>=6){const nm=['萬子','筒子','索子'][su];
+      const off=opts.filter(o=>o.t<27&&suitOf(o.t)!==su&&o.shanten<=top.shanten+1).sort((a,b)=>a.shanten-b.shanten||b.ukeire-a.ukeire)[0];
+      if(off)alt.push({t:off.t,tag:'打点',why:`${hon?'混一色':'清一色'}狙い（${nm}に寄せる）`,sh:'染め'});}}
+  const yao=all.filter(isYaochu).length;
+  if(yao>0&&yao<=3&&P.melds.every(m=>m.tiles.every(x=>!isYaochu(x)))){
+    const y=opts.filter(o=>isYaochu(o.t)&&o.shanten<=top.shanten).sort((a,b)=>b.ukeire-a.ukeire)[0];
+    if(y)alt.push({t:y.t,tag:'役',why:'タンヤオ狙い（1・9・字牌を外す）',sh:'タンヤオ'});}
+  const doraT=G.doraInd.slice(0,G.doraCount).map(doraOf);
+  if(doraT.includes(rec)){const k=opts.find(o=>o.t!==rec&&o.shanten===r.shanten&&!doraT.includes(o.t));if(k)alt.push({t:k.t,tag:'打点',why:'ドラを残して高い手に',sh:'ドラ残し'});}
+  const yh=yakuhaiFor(P);const early=P.discards.length<9;
+  if(rec>=27&&c[rec]===1&&yh(rec)){const k=opts.filter(o=>o.t!==rec&&o.shanten<=r.shanten).sort((x,y)=>y.ukeire-x.ukeire)[0];if(k)alt.push({t:k.t,tag:'役',why:`役牌の${tName(rec)}を残して重なりを待つ`,sh:'役牌残し'});}
+  else if(rec>=27&&c[rec]===1&&!threats.length){const k=opts.filter(o=>o.t<27&&o.shanten<=r.shanten).sort((x,y)=>y.ukeire-x.ukeire)[0];if(k)alt.push({t:k.t,tag:'守備',why:`字牌の${tName(rec)}を安全牌として残す`,sh:'安全牌残し'});}
+  if(rec<27&&early){const h=opts.filter(o=>o.t>=27&&c[o.t]===1&&!yh(o.t)&&o.shanten<=r.shanten).sort((x,y)=>y.ukeire-x.ukeire)[0];if(h)alt.push({t:h.t,tag:'整理',why:'字牌から先に切って、後半の守りに備える',sh:'字牌整理'});}
+  const second=opts.find(o=>o.t!==rec&&o.shanten<=top.shanten+1);
+  if(second){const d=r.ukeire-second.ukeire;add(second.t,'次点',second.shanten>r.shanten?`${stat(second)}（1手遅れる）`:`${stat(second)}${d>0?`（${d}枚少ない）`:''}`);}
+  if(threats.length){const sf=safeSorted.find(o=>!out.some(x=>x.t===o.t)&&o.shanten<=top.shanten+1);if(sf&&dangerLevel(sf.danger)<dangerLevel(r.danger))alt.unshift({t:sf.t,tag:'安全',why:`守りも兼ねる（${sf.why||'安全度高'}）`,sh:'安全寄り'});}
+  const used=new Set();
+  for(const a of alt){const ex=out.find(x=>x.t===a.t);
+    if(ex){if(ex.tag==='次点'&&!used.has(ex.t)){used.add(ex.t);ex.why=`${a.why}・${ex.why}`;ex.tag=a.tag;ex.sh=a.sh;}continue;}
+    if(out.length<3){add(a.t,a.tag,a.why,a.sh);used.add(a.t);}}
+  if(out.length<3){const th=opts.find(o=>!out.some(x=>x.t===o.t));if(th)add(th.t,'次点',stat(th));}
+  return out.slice(0,3);
 }
 function scoreText(info,isDealer,tsumo){
   const s=info.score;const hf=info.ym?(s.label):`${info.han}翻${info.fu}符${s.label?' '+s.label:''}`;
@@ -1623,7 +1680,10 @@ function dockState(){
       const tenpai=a.ranked&&a.ranked[0]&&a.ranked[0].shanten===0;
       const ex=a.fold?'serious':tenpai?'happy':(a.threats&&a.threats.length)?'serious':'normal';
       const txt=proOn()?adviceLine(ui):assistLevel()==='hint'?(a.fold?'相手が攻めています。守りも考えよう。':'手が進む牌を考えよう。'):'あなたの番です。';
-      return{ex,html:head+txt};
+      const multi=proOn()&&S.candCount!==1&&a.cands&&a.cands.length>1;
+      const cs=multi?`<div class="cands">${a.cands.map((x,k)=>`<span class="cd c${k}" title="${esc(x.why)}">${tn(x.t)}<b>${['①','②','③'][k]}${x.tag}</b><small>${x.sh||''}</small></span>`).join('')}</div>`:'';
+      const short=multi?((txt.match(/^[\s\S]*?<\/strong>/)||[txt])[0]):txt;
+      return{ex,html:head+short+cs};
     }
     if(ui.opts&&ui.opts.ron)return{ex:'surprised',html:`<strong>ロンできるよ！</strong> ${tn(ui.t)} ${proOn()?adviceLine(ui):''}`};
     return{ex:'think',html:`${esc(G.players[ui.from].name)}の ${tn(ui.t)}、どうする？ ${proOn()?adviceLine(ui):''}`};
@@ -1723,20 +1783,21 @@ function renderTray(){
   const doraT=G.doraInd.slice(0,G.doraCount).map(doraOf);
   const dealing=now-FX.dealAt<1300;
   const items=hand.map((t,i)=>({t,key:'h'+i})).concat(drawn!==null?[{t:drawn,key:'d',drawn:true}]:[]);
-  let hh='',recShown=false;
+  let hh='',recShown=false;const shownT=new Set();
   items.forEach((it,i)=>{
     if(it.drawn)hh+='<span class="gap"></span>';
-    let cls=doraT.includes(it.t)?'dora-mark ':'';let extra='';let style='';
+    let cls=doraT.includes(it.t)?'dora-mark ':'';let extra='';let style='';let tagAttr='';
     if(dealing){cls+='deal ';style=`style="animation-delay:${i*45}ms"`;}
     else if(it.drawn&&now-FX.drawAt<400)cls+='drawn ';
     if(ui){
       const allowed=ui.riichiMode?ui.riichiTiles.includes(it.t):!(ui.forbidden.includes(it.t)&&me.hand.some(x=>!ui.forbidden.includes(x)));
       cls+=allowed?'can ':'no ';
       if(ui.sel===it.key)cls+='sel ';
-      if(proOn()&&ui.adv&&it.t===ui.adv.rec&&!recShown){cls+='rec ';recShown=true;}
+      if(proOn()&&ui.adv){const cs=(ui.adv.cands||[{t:ui.adv.rec,tag:'推奨'}]).slice(0,S.candCount===1?1:3);const k=cs.findIndex(x=>x.t===it.t);
+        if(k>=0&&!shownT.has(it.t)){shownT.add(it.t);cls+=k===0?'rec ':'rec rec'+(k+1)+' ';tagAttr=` data-tag="${S.candCount===1?'推奨':['①','②','③'][k]+cs[k].tag}" data-num="${S.candCount===1?'推奨':['①','②','③'][k]}"`;}}
       const lv=ui.adv&&ui.adv.levels[it.t];if(assistLevel()!=='off'&&lv!==undefined&&lv>=0)extra=`<span class="dg l${lv}"></span>`;
     }
-    hh+=tileHTML(it.t,cls,`data-key="${it.key}" tabindex="${ui?0:-1}" role="button" ${style}`).replace(/<\/span>$/,extra+'</span>');
+    hh+=tileHTML(it.t,cls,`data-key="${it.key}" tabindex="${ui?0:-1}" role="button" ${style}${tagAttr}`).replace(/<\/span>$/,extra+'</span>');
   });
   const tray=$('tray');const units=items.length+(drawn!==null?.35:0)+me.melds.reduce((a,m)=>a+m.tiles.length*.76+.2,0)+(me.melds.length?.5:0)+.3;
   const hw=Math.max(18,Math.min(54,Math.floor((tray.clientWidth-8)/(units*1.06))));tray.style.setProperty('--hw',hw+'px');
@@ -1775,6 +1836,7 @@ function renderCoach(){
     const a=ui.adv;
     if(assistLevel()==='hint')adv=`<span class="note">ヒントモード：</span> 今は${shText(a.cur)}${a.threats.length?'。相手が攻めています。牌の下の色バーで危険度を確認しよう':''}。${a.fold?'守備を考える場面です。':'手を進める場面です。'}`;
     else{adv=a.html;
+      if(S.candCount!==1&&a.cands&&a.cands.length>1)adv+=`<div class="cand-list">${a.cands.map((x,k)=>`<div class="ci"><b>${['①','②','③'][k]}${x.tag}</b>${tn(x.t)}<span>${x.why}</span></div>`).join('')}</div><div class="note" style="margin-top:8px">牌ごとの比較</div>`;
       adv+=`<div class="cand">${a.ranked.map(o=>`<span>${tn(o.t)}</span><span>${shText(o.shanten)}・有効牌${o.ukeire}枚</span>${a.threats.length?`<span class="lv l${dangerLevel(o.danger)}">${LV_NAME[dangerLevel(o.danger)]}</span>`:'<span></span>'}`).join('')}</div>`;}
     if(ui.sel!=null){const it=selTile();if(it!=null){const o=analyzeDiscards(me,ui.forbidden).opts.find(x=>x.t===it);
       if(o)adv+=`<div class="tip" style="margin-top:8px">選択中 ${tn(it)}：切ると${shText(o.shanten)}・有効牌${o.ukeire}枚${a.threats.length?`・危険度「${LV_NAME[dangerLevel(o.danger)]}」${o.why?'（'+o.why+'）':''}`:''}。もう一度タップで捨てます。</div>`;}}
@@ -2591,6 +2653,7 @@ function showSettings(){
     ${seg('length','対局の長さ',[[4,'東風戦'],[8,'半荘戦']])}
     ${seg('assist','アシスト',[['full','フル'],['hint','ヒント'],['off','オフ']])}
     ${seg('cpuLevel','CPUの強さ',[[1,'入門'],[2,'初級'],[3,'中級'],[4,'上級'],[5,'達人']])}
+    ${seg('candCount','おすすめの数',[[3,'3つ（比較）'],[1,'1つ（シンプル）']])}
     ${seg('voice','音声解説',[['off','オフ'],['coach','解説'],['all','解説＋実況']])}
     ${seg('voiceEngine','声の種類',[['auto','おすすめ'],['device','端末の声'],['claude','Claudeの声']])}
     <div class="seg"><span class="seg-l">端末の声</span><select id="voicePick" class="vsel" aria-label="端末の声"></select></div>
