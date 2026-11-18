@@ -941,6 +941,7 @@ function adviceSpeech(ui){
     if(a.fold){const th=a.threats&&a.threats[0];L.push(`${tRead(t)}を切って、守りましょう。`);L.push(`${th?th.q.name+'のリーチに、':''}安全な牌です。`);return L;}
     if(o&&o.shanten===0){L.push(`${tRead(t)}を切れば、テンパイです！`);if(a.recRiichi)L.push(G.noCalls&&P.discards.length===0?'ダブルリーチのチャンスです！':'リーチがおすすめです。');return L;}
     const c=toCounts(P.hand);
+    if(a.flush){L.push(`${tRead(t)}を切って、${a.flush.name.replace('萬子','マンズ').replace('筒子','ピンズ').replace('索子','ソーズ')}に染めましょう。`);L.push(`${a.flush.kind==='混一色'?'ホンイツ':'チンイツ'}で、打点が大きく上がります。`);return L;}
     L.push(`${tRead(t)}を切りましょう。`);
     if(t>=27&&c[t]===1)L.push('孤立した字牌です。');else if(t<27&&(t%9===0||t%9===8)&&c[t]===1)L.push('使いにくい端の牌です。');else if(o)L.push(`有効牌は${o.ukeire}枚です。`);
     if(o&&a.threats&&a.threats.length&&o.danger>=2)L.push('ただし、少し危ない牌です。');
@@ -1107,7 +1108,8 @@ function cpuChoose(P,forbidden){
     if(Math.random()<0.12&&A.opts[1])return{opt:A.opts[1],fold:false,A};
     return{opt:top,fold:false,A};
   }
-  const ch=chooseDiscard(P,forbidden,lv===5?(P.style==='attack'?'balanced':P.style):P.style);
+  let ch=chooseDiscard(P,forbidden,lv===5?(P.style==='attack'?'balanced':P.style):P.style);
+  if(!ch.fold){const fp=flushPlan(P,ch.A.opts);if(fp&&fp.go)ch={...ch,opt:fp.pick};}
   if(lv===5&&ch.A.threats.length){
     const A=ch.A;
     if(!ch.fold){ // among near-equal efficient choices take the safest
@@ -1337,9 +1339,37 @@ function waitHuman(state,auto,tok){
 
 // ---------- coach: self turn ----------
 function shText(s){return s===-1?'和了':s===0?'テンパイ':`${s}向聴`;}
+// ---- 染め手 (flush) planning: distance to a one-suit (+honors) hand ----
+function flushPlan(P,opts){
+  if(!opts||!opts.length)return null;
+  const all=P.hand.concat(...P.melds.map(m=>m.tiles));const hon=all.filter(isHonor).length;
+  const meldSuits=new Set(P.melds.filter(m=>m.tiles[0]<27).map(m=>suitOf(m.tiles[0])));
+  if(meldSuits.size>1)return null;
+  let best=null;
+  for(let su=0;su<3;su++){if(meldSuits.size&&!meldSuits.has(su))continue;
+    const n=all.filter(x=>x<27&&suitOf(x)===su).length;if(n<6||n+hon<8)continue;
+    if(!best||n+hon>best.cnt)best={su,n,cnt:n+hon};}
+  if(!best)return null;
+  const keep=t=>t>=27||suitOf(t)===best.su;
+  const m=P.melds.length;
+  const fsh=hand=>{const c=toCounts(hand);for(let t=0;t<27;t++)if(!keep(t))c[t]=0;return shantenNormal(c,m);};
+  const evals=opts.map(o=>{const h=P.hand.slice();removeOne(h,o.t);return{o,fs:fsh(h)};});
+  evals.sort((a,b)=>a.fs-b.fs||(keep(a.o.t)-keep(b.o.t))||a.o.shanten-b.o.shanten||b.o.ukeire-a.o.ukeire);
+  const pick=evals[0],normal=opts[0].shanten;
+  const offLeft=P.hand.filter(t=>!keep(t)).length;
+  const open=P.melds.some(x=>x.type!=='ankan');
+  const otherYaku=open&&P.melds.some(x=>x.type!=='chi'&&yakuhaiFor(P)(x.tiles[0]));
+  const honNow=all.some(isHonor);
+  const turn=P.discards.length,slack=turn<=5?2:turn<=10?1:0;
+  const go=normal>0&&offLeft>0&&!keep(pick.o.t)&&pick.fs<=normal+slack&&((best.cnt>=9&&pick.fs<=normal+slack)||(best.cnt>=8&&pick.fs<=normal+Math.max(0,slack-1)&&!otherYaku));
+  return{suit:best.su,name:['萬子','筒子','索子'][best.su],cnt:best.cnt,offLeft,fs:pick.fs,normal,pick:pick.o,go,
+    kind:honNow?'混一色':'清一色',han:honNow?(open?2:3):(open?5:6)};
+}
 function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
   const {opts,threats,vis}=analyzeDiscards(P,forbidden);
-  const ch=chooseDiscard(P,forbidden,'balanced');
+  let ch=chooseDiscard(P,forbidden,'balanced');
+  const fp=!ch.fold?flushPlan(P,opts):null;const flushGo=!!(fp&&fp.go);
+  if(flushGo)ch={...ch,opt:fp.pick};
   let rec=ch.opt.t,recRiichi=false;const lines=[];
   const cur=shantenAll(toCounts(P.hand),P.melds.length);
   const c=toCounts(P.hand);
@@ -1357,6 +1387,7 @@ function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
     else if(o.t<27&&(o.t%9===0||o.t%9===8)&&c[o.t]===1)reason='孤立した端牌は面子になりにくい牌です';
     else if(opts.length>1&&opts[1].shanten===after&&o.ukeire>opts[1].ukeire)reason=`他の候補より受け入れが${o.ukeire-opts[1].ukeire}枚多くなります`;
     else reason='手の進みが最も速くなる選択です';
+    if(flushGo)reason=`${fp.name}と字牌が${fp.cnt}枚。<b>${fp.kind}（${fp.han}翻）</b>が見えるので、${fp.name}以外を外して染めましょう`;
     if(after===0){
       const ro=riichiOptions(P);
       let bestR=null;for(const t of ro){const hh=P.hand.slice();removeOne(hh,t);const w2=getWaits(hh,P.melds.length);const n=w2.reduce((a,w)=>a+Math.max(0,4-vis[w]),0);if(!bestR||n>bestR.n)bestR={t,n,ws:w2};}
@@ -1377,6 +1408,7 @@ function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
       }
     }else{
       lines.push(`<strong>${tn(o.t)} 切りがおすすめ。</strong> ${reason}。`);
+      if(flushGo&&opts[0].t!==o.t)lines.push(`<span class="note">速さだけなら ${tn(opts[0].t)}（${shText(opts[0].shanten)}・有効牌${opts[0].ukeire}枚）。染めると${fp.fs>fp.normal?(fp.fs-fp.normal)+'手遅くなる代わりに':''}打点が大きく上がります（${fp.kind}は鳴いても${fp.han>3?fp.han-1:2}翻以上）。</span>`);
       lines.push(`切った後は${shText(after)}、有効牌（来れば手が進む牌）は<b>${o.ukeTiles.length}種${o.ukeire}枚</b>：${o.ukeTiles.slice(0,9).map(tn).join('')}${o.ukeTiles.length>9?'…':''}`);
     }
     if(threats.length&&o.danger>=2){const th=threats.find(x=>x.q===o.who)||threats[0];
@@ -1386,11 +1418,11 @@ function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
   }
   const ranked=(ch.fold?opts.slice().sort((a,b)=>a.danger-b.danger||a.shanten-b.shanten):opts).slice(0,4);
   const levels={};for(const op of opts)levels[op.t]=threats.length?dangerLevel(op.danger):-1;
-  const cands=buildCandidates(P,opts,threats,ch.fold,rec,recRiichi,c);
-  return{rec,recRiichi,html:lines.join('<br>'),ranked,levels,threats,cur,fold:ch.fold,cands};
+  const cands=buildCandidates(P,opts,threats,ch.fold,rec,recRiichi,c,flushGo?fp:null,fp);
+  return{rec,recRiichi,html:lines.join('<br>'),ranked,levels,threats,cur,fold:ch.fold,cands,flush:flushGo?fp:null};
 }
 // up to three candidates, each with a different idea (speed / runner-up / value or safety)
-function buildCandidates(P,opts,threats,fold,rec,recRiichi,c){
+function buildCandidates(P,opts,threats,fold,rec,recRiichi,c,flushGo,fpAny){
   const out=[];const by=t=>opts.find(o=>o.t===t);
   const add=(t,tag,why,sh)=>{if(t==null||out.some(o=>o.t===t)||!by(t))return;out.push({t,tag,why,sh:sh||`有効${by(t).ukeire}枚`});};
   const top=opts[0];const stat=o=>`${shText(o.shanten)}・有効牌${o.ukeire}枚`;
@@ -1401,14 +1433,14 @@ function buildCandidates(P,opts,threats,fold,rec,recRiichi,c){
     add(top.t,'攻め',`${stat(top)}・危険度「${LV_NAME[dangerLevel(top.danger)]}」`,'押し');
     return out.slice(0,3);
   }
-  const r=by(rec);add(rec,recRiichi?'リーチ':'速さ',r.shanten===0?'テンパイ・待ち最多':`最速・${stat(r)}`);
+  const r=by(rec);
+  if(flushGo){add(rec,'染め',`${flushGo.kind}狙い（${flushGo.name}に寄せる・${flushGo.han}翻）・${stat(r)}`,'染め');add(top.t,'速さ',`最速・${stat(top)}`);}
+  else add(rec,recRiichi?'リーチ':'速さ',r.shanten===0?'テンパイ・待ち最多':`最速・${stat(r)}`);
   // value / yaku idea
   const all=P.hand.concat(...P.melds.map(m=>m.tiles));const hon=all.filter(isHonor).length;
   const alt=[];
-  for(let su=0;su<3;su++){const inS=all.filter(x=>x<27&&suitOf(x)===su).length;
-    if(inS+hon>=9&&inS>=6){const nm=['萬子','筒子','索子'][su];
-      const off=opts.filter(o=>o.t<27&&suitOf(o.t)!==su&&o.shanten<=top.shanten+1).sort((a,b)=>a.shanten-b.shanten||b.ukeire-a.ukeire)[0];
-      if(off)alt.push({t:off.t,tag:'打点',why:`${hon?'混一色':'清一色'}狙い（${nm}に寄せる）`,sh:'染め'});}}
+  if(!flushGo&&fpAny&&top.shanten>0&&fpAny.offLeft>0&&fpAny.pick.t!==rec&&fpAny.pick.shanten<=top.shanten+1)
+    alt.push({t:fpAny.pick.t,tag:'染め',why:`${fpAny.kind}狙い（${fpAny.name}に寄せる・${fpAny.han}翻）`,sh:'染め'});
   const yao=all.filter(isYaochu).length;
   if(yao>0&&yao<=3&&P.melds.every(m=>m.tiles.every(x=>!isYaochu(x)))){
     const y=opts.filter(o=>isYaochu(o.t)&&o.shanten<=top.shanten).sort((a,b)=>b.ukeire-a.ukeire)[0];
