@@ -782,7 +782,7 @@ const LV_NAME=['安全','ほぼ安全','注意','危険'];
 // LOGIC-END
 
 // ================= GAME / UI =================
-const S={timeLimit:90,length:4,assist:'full',speed:650,oneTap:false,voice:'off',sfx:true,guide:true,autoWin:false,noCall:false,coachTab:'advice',voiceEngine:'auto',voiceRate:1,cpuLevel:4,candCount:3,claudeVoice:'airy',voiceName:''};
+const S={timeLimit:90,length:4,assist:'full',speed:650,oneTap:false,voice:'off',sfx:true,guide:true,autoWin:false,noCall:false,coachTab:'advice',voiceEngine:'auto',voiceRate:1,cpuLevel:4,candCount:3,drillLevel:2,claudeVoice:'airy',voiceName:''};
 try{const s=JSON.parse(localStorage.getItem('mj-settings')||'null');if(s)Object.assign(S,s);}catch(e){}
 const saveS=()=>{try{localStorage.setItem('mj-settings',JSON.stringify(S));}catch(e){}};
 const $=id=>document.getElementById(id);
@@ -1013,6 +1013,21 @@ function ukeire(c,m,sh,vis){
     c[u]++;if(shantenAll(c,m)<sh){count+=rem;tiles.push(u);}c[u]--;}
   return{count,tiles};
 }
+// value/growth of a hand (in "tile-acceptance" units): yaku potential, dora, good shapes
+function handValue(hand,melds,P,useDora){
+  const all=hand.concat(...(melds||[]).map(m=>m.tiles));const c=toCounts(all);const tags=[];let v=0;
+  const yao=all.filter(isYaochu).length;
+  if(yao<=3){v+=(4-yao)*1.5;if(yao<=1)tags.push('タンヤオ');}
+  let bS=0,bN=0;for(let n=0;n<7;n++){let cov=0;for(let su=0;su<3;su++)for(let k=0;k<3;k++)if(c[su*9+n+k])cov++;if(cov>bS){bS=cov;bN=n;}}
+  if(bS>=5){v+=(bS-4)*2.2;if(bS>=6)tags.push(`三色(${bN+1}${bN+2}${bN+3})`);}
+  let bI=0;for(let su=0;su<3;su++){let cov=0;for(let k=0;k<9;k++)if(c[su*9+k])cov++;if(cov>bI)bI=cov;}
+  if(bI>=6){v+=(bI-5)*1.8;if(bI>=7)tags.push('一気通貫');}
+  if(P){const yh=yakuhaiFor(P);for(let t=27;t<34;t++)if(yh(t)&&c[t]>=2){v+=4;tags.push('役牌');break;}}
+  if(useDora&&G&&G.doraInd){const dT=G.doraInd.slice(0,G.doraCount).map(doraOf);const d=all.filter(t=>dT.includes(t)).length;if(d){v+=d*2.5;tags.push('ドラ');}}
+  const hc=toCounts(hand);let ry=0;for(let t=0;t<27;t++){const n=t%9;if(n>=1&&n<=6&&hc[t]&&hc[t+1])ry++;}
+  v+=ry*0.8;if(ry>=3)tags.push('両面の形');
+  return{v,tags};
+}
 function analyzeDiscards(P,forbidden=[]){
   const vis=visibleFor(P);const c=toCounts(P.hand);const m=P.melds.length;const seen=new Set();const opts=[];
   const threats=threatsFor(P);const doraT=G.doraInd.slice(0,G.doraCount).map(doraOf);
@@ -1023,8 +1038,9 @@ function analyzeDiscards(P,forbidden=[]){
     let pen=0;if(doraT.includes(t))pen+=3;
     if(t>=27){if(c[t]===1)pen-=(yakuhaiFor(P)(t)?0.5:1.5);else if(yakuhaiFor(P)(t))pen+=2;}
     else if((t%9===0||t%9===8)&&c[t]===1)pen-=0.6;
-    opts.push({t,shanten:sh,ukeire:uk.count,ukeTiles:uk.tiles,danger:dg.d,why:dg.why,who:dg.who,pen});}
-  opts.sort((a,b)=>a.shanten-b.shanten||b.ukeire-a.ukeire||a.pen-b.pen);
+    const h=P.hand.slice();removeOne(h,t);const hv=handValue(h,P.melds,P,true);
+    opts.push({t,shanten:sh,ukeire:uk.count,ukeTiles:uk.tiles,danger:dg.d,why:dg.why,who:dg.who,pen,val:hv.v,vtags:hv.tags,score:uk.count+hv.v-pen});}
+  opts.sort((a,b)=>a.shanten-b.shanten||b.score-a.score||b.ukeire-a.ukeire);
   return{opts,threats,vis};
 }
 function chooseDiscard(P,forbidden,style){
@@ -1385,7 +1401,10 @@ function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
     const after=o.shanten;let reason;
     if(o.t>=27&&c[o.t]===1)reason=yakuhaiFor(P)(o.t)?'役牌でも1枚だけでは重なりにくく、面子になりません':'孤立した字牌で、他の牌とつながりません（字牌は順子を作れない）';
     else if(o.t<27&&(o.t%9===0||o.t%9===8)&&c[o.t]===1)reason='孤立した端牌は面子になりにくい牌です';
-    else if(opts.length>1&&opts[1].shanten===after&&o.ukeire>opts[1].ukeire)reason=`他の候補より受け入れが${o.ukeire-opts[1].ukeire}枚多くなります`;
+    else if((()=>{const mu=opts.filter(x=>x.shanten===after).sort((a,b)=>b.ukeire-a.ukeire)[0];return mu&&mu.t!==o.t&&mu.ukeire>o.ukeire;})()){
+      const mu=opts.filter(x=>x.shanten===after).sort((a,b)=>b.ukeire-a.ukeire)[0];const extra=(o.vtags||[]).filter(x=>!(mu.vtags||[]).includes(x));
+      reason=`受け入れは${tn(mu.t)}切りより${mu.ukeire-o.ukeire}枚少ないですが、${extra.length?extra.join('・')+'の形':'打点と伸びのある形'}を残せます`;}
+    else if(opts.length>1&&opts[1].shanten===after&&o.ukeire>opts[1].ukeire)reason=`他の候補より受け入れが${o.ukeire-opts[1].ukeire}枚多くなります${(o.vtags||[]).length?`（${o.vtags.join('・')}も残る）`:''}`;
     else reason='手の進みが最も速くなる選択です';
     if(flushGo)reason=`${fp.name}と字牌が${fp.cnt}枚。<b>${fp.kind}（${fp.han}翻）</b>が見えるので、${fp.name}以外を外して染めましょう`;
     if(after===0){
@@ -1407,7 +1426,8 @@ function buildSelfAdvice(P,drawn,forbidden,tsumoInfo){
         if(!test.valid)lines.push('<b>注意：</b>このままだと役がないかもしれません（鳴いた手はリーチできません）。役が付く待ちか確認を。');
       }
     }else{
-      lines.push(`<strong>${tn(o.t)} 切りがおすすめ。</strong> ${reason}。`);
+      const keepY=(o.vtags||[]).filter(x=>/三色|一気通貫|タンヤオ/.test(x));
+      lines.push(`<strong>${tn(o.t)} 切りがおすすめ。</strong> ${reason}${keepY.length&&!/形を残せます/.test(reason)?`。${keepY.join('・')}の可能性も残ります`:''}。`);
       if(flushGo&&opts[0].t!==o.t)lines.push(`<span class="note">速さだけなら ${tn(opts[0].t)}（${shText(opts[0].shanten)}・有効牌${opts[0].ukeire}枚）。染めると${fp.fs>fp.normal?(fp.fs-fp.normal)+'手遅くなる代わりに':''}打点が大きく上がります（${fp.kind}は鳴いても${fp.han>3?fp.han-1:2}翻以上）。</span>`);
       lines.push(`切った後は${shText(after)}、有効牌（来れば手が進む牌）は<b>${o.ukeTiles.length}種${o.ukeire}枚</b>：${o.ukeTiles.slice(0,9).map(tn).join('')}${o.ukeTiles.length>9?'…':''}`);
     }
@@ -1435,7 +1455,9 @@ function buildCandidates(P,opts,threats,fold,rec,recRiichi,c,flushGo,fpAny){
   }
   const r=by(rec);
   if(flushGo){add(rec,'染め',`${flushGo.kind}狙い（${flushGo.name}に寄せる・${flushGo.han}翻）・${stat(r)}`,'染め');add(top.t,'速さ',`最速・${stat(top)}`);}
-  else add(rec,recRiichi?'リーチ':'速さ',r.shanten===0?'テンパイ・待ち最多':`最速・${stat(r)}`);
+  else{const mu=opts.filter(o=>o.shanten===r.shanten).sort((a,b)=>b.ukeire-a.ukeire)[0];const diff=mu&&mu.t!==rec&&mu.ukeire>r.ukeire;
+    add(rec,recRiichi?'リーチ':diff?'総合':'速さ',r.shanten===0?'テンパイ・待ち最多':`${diff?'受け入れ＋形・役の総合':'最速'}・${stat(r)}${(r.vtags||[]).length?'・'+r.vtags.join('・'):''}`);
+    if(diff&&r.shanten>0)add(mu.t,'受入',`受け入れ最大・${stat(mu)}`);}
   // value / yaku idea
   const all=P.hand.concat(...P.melds.map(m=>m.tiles));const hon=all.filter(isHonor).length;
   const alt=[];
@@ -2610,29 +2632,49 @@ function showReview(){
 const DRILL={n:0,ok:0,streak:0,best:0,cur:null};
 try{Object.assign(DRILL,JSON.parse(localStorage.getItem('mj-drill')||'{}'),{cur:null});}catch(e){}
 const saveDrill=()=>{try{localStorage.setItem('mj-drill',JSON.stringify({n:DRILL.n,ok:DRILL.ok,best:DRILL.best}));}catch(e){}};
-function drillNew(){
-  let hand,sh;
-  for(let k=0;k<500;k++){const w=[];for(let t=0;t<34;t++)for(let j=0;j<4;j++)w.push(t);shuffle(w);hand=sortTiles(w.slice(0,14));sh=shantenAll(toCounts(hand),0);if(sh>=1&&sh<=2)break;}
+function drillOpts(hand){
   const c=toCounts(hand),vis=toCounts(hand),opts=[];
   for(const t of new Set(hand)){c[t]--;const s=shantenAll(c,0);const uk=ukeire(c,0,s,vis);c[t]++;
-    let reason;if(t>=27&&c[t]===1)reason='孤立した字牌';else if(t<27&&(t%9===0||t%9===8)&&c[t]===1)reason='孤立した端牌';else reason='';
-    opts.push({t,sh:s,uk:uk.count,tiles:uk.tiles,reason});}
-  opts.sort((a,b)=>a.sh-b.sh||b.uk-a.uk);
-  DRILL.cur={hand,opts,answered:null};
+    const h=hand.slice();removeOne(h,t);const hv=handValue(h,[],null,false);
+    let reason;if(t>=27&&c[t]===1)reason='孤立した字牌';else if(t<27&&(t%9===0||t%9===8)&&c[t]===1&&!c[t+(t%9===0?1:-1)]&&!c[t+(t%9===0?2:-2)])reason='孤立した端牌';else reason='';
+    opts.push({t,sh:s,uk:uk.count,tiles:uk.tiles,reason,val:hv.v,tags:hv.tags,score:uk.count+hv.v});}
+  opts.sort((a,b)=>a.sh-b.sh||b.score-a.score||b.uk-a.uk);return opts;
 }
+function drillNew(){
+  const lv=+S.drillLevel||2;const t0=performance.now();let fallback=null;
+  for(let k=0;k<4000&&performance.now()-t0<1500;k++){
+    const w=[];for(let t=0;t<34;t++)for(let j=0;j<4;j++)w.push(t);shuffle(w);let hand;
+    if(lv>=2){const nums=w.filter(t=>t<27),hons=w.filter(t=>t>=27);const nh=lv===3?(Math.random()<0.6?0:1):Math.floor(Math.random()*3);hand=sortTiles(nums.slice(0,14-nh).concat(hons.slice(0,nh)));}
+    else hand=sortTiles(w.slice(0,14));
+    const sh=shantenAll(toCounts(hand),0);if(sh<1||sh>2)continue;
+    const opts=drillOpts(hand),top=opts[0];
+    if(lv===1){DRILL.cur={hand,opts,answered:null};return;}
+    if(top.reason)continue;
+    const close=opts.filter(o=>o.sh===top.sh&&o.score>=top.score-(lv===3?4:7)).length;
+    if(!fallback)fallback={hand,opts};
+    if(close<(lv===3?3:2))continue;
+    DRILL.cur={hand,opts,answered:null};return;
+  }
+  const f=fallback||(()=>{const w=[];for(let t=0;t<34;t++)for(let j=0;j<4;j++)w.push(t);shuffle(w);const hand=sortTiles(w.slice(0,14));return{hand,opts:drillOpts(hand)};})();
+  DRILL.cur={hand:f.hand,opts:f.opts,answered:null};
+}
+const drillGood=(o,best)=>o.sh===best.sh&&o.score>=best.score-1.5;
 function drillHTML(){
   const D=DRILL.cur;const best=D.opts[0];
-  const isBest=o=>o.sh===best.sh&&o.uk===best.uk;
-  let h=`<h2>何切る練習</h2><p class="note">14枚の手牌から1枚切ります。<b>向聴数</b>が進み、<b>受け入れ枚数</b>が最も多くなる牌はどれ？（ドラ・場況なし）</p>
+  const isBest=o=>drillGood(o,best);
+  let h=`<h2>何切る練習</h2><div class="quick">${seg('drillLevel','難しさ',[[1,'やさしい'],[2,'ふつう'],[3,'むずかしい']])}</div>
+  <p class="note">14枚の手牌から1枚切ります。<b>向聴数</b>・<b>受け入れ枚数</b>に加えて、<b>形の良さや役（タンヤオ・三色・一通）</b>も含めて一番良い牌はどれ？（ドラ・場況なし）</p>
   <p class="drill-stats">${DRILL.n}問中 <b>${DRILL.ok}</b>問正解・連続正解 <b>${DRILL.streak}</b>（最高 ${DRILL.best}）</p>
   <div class="drill-hand" id="drillHand">${D.hand.map((t,i)=>tileHTML(t,(D.answered!==null?(t===D.answered&&!isBest(D.opts.find(o=>o.t===t))?'mark-bad ':'')+(isBest(D.opts.find(o=>o.t===t))?'mark-good ':''):'can '),`data-dt="${t}" role="button" tabindex="0"`)).join('')}</div>`;
   if(D.answered===null){h+=`<p class="note">今の手は${shText(shantenAll(toCounts(D.hand),0))}（1枚切った後の最善）。牌をタップして答えましょう。</p><p style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="drillHint">ヒント</button><button class="btn" id="drillSkip">別の問題</button><button class="btn" id="drillClose">閉じる</button></p><p class="note" id="drillHintText"></p>`;}
   else{
     const mine=D.opts.find(o=>o.t===D.answered);const good=isBest(mine);
     const bests=D.opts.filter(isBest);
+    const mu=D.opts.filter(o=>o.sh===best.sh).sort((a,b)=>b.uk-a.uk)[0];
     h+=`<p class="advice-main">${good?'<strong>正解！</strong>':'<strong>惜しい！</strong>'} 正解は ${bests.map(o=>tn(o.t)).join('')}。切ると${shText(best.sh)}、有効牌 <b>${best.tiles.length}種${best.uk}枚</b>：${best.tiles.map(tn).join('')}${best.reason?`（${best.reason}を切るのが基本）`:''}</p>`;
-    if(!good)h+=`<p class="note">あなたの ${tn(mine.t)} は${shText(mine.sh)}・有効牌${mine.uk}枚。${mine.sh>best.sh?'向聴数が戻ってしまいます。':`受け入れが${best.uk-mine.uk}枚少なくなります。`}</p>`;
-    h+=`<div class="cand">${D.opts.slice(0,6).map(o=>`<span>${tn(o.t)}</span><span>${shText(o.sh)}・有効牌${o.uk}枚</span><span class="lv ${isBest(o)?'l0':o.sh>best.sh?'l3':'l2'}">${isBest(o)?'最善':o.sh>best.sh?'後退':'−'+(best.uk-o.uk)+'枚'}</span>`).join('')}</div>`;
+    if(mu&&mu.t!==best.t&&mu.uk>best.uk&&!bests.includes(mu))h+=`<p class="note">受け入れだけなら ${tn(mu.t)}（${mu.uk}枚）が最多ですが、${tn(best.t)}切りは${(best.tags||[]).filter(x=>!(mu.tags||[]).includes(x)).join('・')||'形・役の伸び'}を残せるので総合で上です。</p>`;
+    if(!good)h+=`<p class="note">あなたの ${tn(mine.t)} は${shText(mine.sh)}・有効牌${mine.uk}枚${(mine.tags||[]).length?`（${mine.tags.join('・')}）`:''}。${mine.sh>best.sh?'向聴数が戻ってしまいます。':mine.uk<best.uk?`受け入れが${best.uk-mine.uk}枚少なくなります。`:'受け入れは多いですが、形・役の伸びで劣ります。'}</p>`;
+    h+=`<div class="cand">${D.opts.slice(0,6).map(o=>`<span>${tn(o.t)}</span><span>${shText(o.sh)}・有効牌${o.uk}枚${(o.tags||[]).length?`<small class="note">（${o.tags.join('・')}）</small>`:''}</span><span class="lv ${isBest(o)?'l0':o.sh>best.sh?'l3':'l2'}">${isBest(o)?'最善':o.sh>best.sh?'後退':'評価−'+Math.round(best.score-o.score)}</span>`).join('')}</div>`;
     h+=`<p style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn primary" id="drillNext">次の問題</button><button class="btn" id="drillClose">閉じる</button></p>`;
   }
   return h;
@@ -2641,7 +2683,7 @@ function showDrill(keep){
   if(!keep&&(!DRILL.cur||DRILL.cur.answered!==null))drillNew();
   openModal(drillHTML());
   const sheet=$('sheet');
-  const pick=t=>{const D=DRILL.cur;if(D.answered!==null)return;D.answered=t;const best=D.opts[0];const mine=D.opts.find(o=>o.t===t);const good=mine.sh===best.sh&&mine.uk===best.uk;
+  const pick=t=>{const D=DRILL.cur;if(D.answered!==null)return;D.answered=t;const best=D.opts[0];const mine=D.opts.find(o=>o.t===t);const good=drillGood(mine,best);
     DRILL.n++;if(good){DRILL.ok++;DRILL.streak++;DRILL.best=Math.max(DRILL.best,DRILL.streak);}else DRILL.streak=0;saveDrill();showDrill(true);
     if(S.voice!=='off')sayNow(toSpeech(good?`正解！ ${tName(t)}切りで有効牌${best.uk}枚です。`:`惜しい。正解は${tName(best.t)}。有効牌${best.uk}枚、あなたの${tName(t)}は${mine.uk}枚でした。`));};
   sheet.querySelectorAll('[data-dt]').forEach(el=>{el.onclick=()=>pick(+el.dataset.dt);el.onkeydown=e=>{if(e.key==='Enter')pick(+el.dataset.dt);};});
@@ -2694,6 +2736,7 @@ function onSetting(k){
   if(k==='voice'){renderVoiceBtn();if(S.voice==='off')stopVoice();else say(S.voice==='all'?'音声解説と実況をオンにしました。':'音声解説をオンにしました。');}
   if(k==='sfx'){renderSfxBtn();if(S.sfx){actx();setTimeout(()=>sfx('call'),60);}}
   if(k==='guide')applyGuide();
+  if(k==='drillLevel'&&$('drillHand')){drillNew();showDrill(true);return;}
   if(G)render();
 }
 function showSettings(){
